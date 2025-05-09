@@ -1,14 +1,25 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { Search, User, MapPin, Truck, Store, ArrowRight, Star, Utensils, Coffee, Pizza, Salad, IceCream, Beef } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { Search, User, MapPin, Truck, Store, ArrowRight, Star, Utensils, Coffee, Pizza, Salad, IceCream, Beef, Navigation, MapIcon, X, CheckCircle2, Clock, Home, Plus, Minus } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import LoginPage from './LoginPage';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import 'leaflet/dist/leaflet.css';
 
 const SiteHeader = () => {
   const handleLogout = () => {
     localStorage.removeItem('userName');
-    toast.success('Logged out successfully!');
+    toast.success('Logged out successfully!', {
+      position: "top-center",
+      autoClose: 2000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      style: { marginTop: '70px' } // Position below the header
+    });
     window.location.reload(); // Refresh to update UI
   };
 
@@ -24,10 +35,10 @@ const SiteHeader = () => {
         </Link>
         
         <nav className="hidden md:flex items-center space-x-8 text-sm font-medium">
-          <Link to="/" className="hover:text-orange-600 transition-colors">Home</Link>
-          <Link to="#" className="hover:text-orange-600 transition-colors">Restaurants</Link>
-          <Link to="#" className="hover:text-orange-600 transition-colors">Categories</Link>
-          <Link to="#" className="hover:text-orange-600 transition-colors">Offers</Link>
+          <Link to="/" className="text-gray-800 hover:text-orange-600 transition-colors">Home</Link>
+          <Link to="#" className="text-gray-800 hover:text-orange-600 transition-colors">Restaurants</Link>
+          <Link to="#" className="text-gray-800 hover:text-orange-600 transition-colors">Categories</Link>
+          <Link to="#" className="text-gray-800 hover:text-orange-600 transition-colors">Offers</Link>
         </nav>
 
         <div className="flex items-center space-x-4">
@@ -61,38 +72,395 @@ const SiteHeader = () => {
   );
 };
 
-const HeroSection = () => {
-  const [deliveryType, setDeliveryType] = React.useState('delivery');
-  const userName = localStorage.getItem('userName');
-  // New state for the pizza rotation angle, in degrees
-  const [pizzaRotation, setPizzaRotation] = React.useState(0);
-  // Ref for the pizza container (we'll attach the rotation here)
-  const pizzaRef = React.useRef(null);
+// Map Selector Component
+const MapSelector = () => {
+  const navigate = useNavigate();
+  const [address, setAddress] = useState(localStorage.getItem('selectedAddress') || 'KL University, Guntur, Andhra Pradesh, India');
+  const [selectedLocation, setSelectedLocation] = useState({
+    lat: parseFloat(localStorage.getItem('selectedLat')) || 16.4419,
+    lng: parseFloat(localStorage.getItem('selectedLng')) || 80.6226
+  });
+  const mapRef = useRef(null);
 
-  React.useEffect(() => {
-    if (userName) {
-      toast.success(`Welcome back, ${userName}! 😊`, {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
+  // Custom Leaflet marker icon
+  const customIcon = new L.Icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+  });
+
+  const mockLocations = [
+    { name: "KL University", address: "KL University, Guntur, Andhra Pradesh, India", lat: 16.4419, lng: 80.6226 },
+    { name: "Vijayawada", address: "Vijayawada, Krishna District, Andhra Pradesh, India", lat: 16.5062, lng: 80.6480 },
+    { name: "Guntur", address: "Guntur, Andhra Pradesh, India", lat: 16.3067, lng: 80.4365 }
+  ];
+
+  const handleSaveLocation = () => {
+    if (address) {
+      localStorage.setItem('selectedAddress', address);
+      localStorage.setItem('selectedLat', selectedLocation.lat);
+      localStorage.setItem('selectedLng', selectedLocation.lng);
+      toast.success('Location saved successfully!', {
+        position: "top-center",
+        autoClose: 2000,
+        style: { marginTop: '70px' }
+      });
+      navigate('/');
+    } else {
+      toast.error('Please select a location first', {
+        position: "top-center",
+        autoClose: 2000,
+        style: { marginTop: '70px' }
       });
     }
-  }, [userName]); // Runs once when component mounts
+  };
 
-  // Global mouse move handler attached to the window to get the cursor position everywhere (including over the header)
+  const selectSavedLocation = (location) => {
+    setSelectedLocation({ lat: location.lat, lng: location.lng });
+    setAddress(location.address);
+    
+    if (mapRef.current) {
+      mapRef.current.setView([location.lat, location.lng], 15);
+    }
+  };
+
+  // Component for map click events
+  const LocationMarker = () => {
+    const map = useMap();
+    mapRef.current = map;
+    
+    useMapEvents({
+      click(e) {
+        const { lat, lng } = e.latlng;
+        setSelectedLocation({ lat, lng });
+        
+        // Reverse geocoding using Nominatim (OpenStreetMap's free geocoder)
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.display_name) {
+              setAddress(data.display_name);
+            }
+          })
+          .catch(error => {
+            console.error("Error with geocoding:", error);
+            setAddress(`Location at ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          });
+      }
+    });
+
+    return selectedLocation ? (
+      <Marker 
+        position={[selectedLocation.lat, selectedLocation.lng]} 
+        icon={customIcon}
+      >
+        <Popup>Selected location</Popup>
+      </Marker>
+    ) : null;
+  };
+
+  // Map control buttons component
+  const MapControls = () => {
+    const map = useMap();
+    
+    return (
+      <div className="absolute top-4 right-4 flex flex-col gap-2 z-1000">
+        <button 
+          className="map-control"
+          onClick={() => map.zoomIn()}
+        >
+          <Plus size={20} />
+        </button>
+        <button 
+          className="map-control"
+          onClick={() => map.zoomOut()}
+        >
+          <Minus size={20} />
+        </button>
+        <button 
+          className="map-control"
+          onClick={() => {
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  const pos = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                  };
+                  setSelectedLocation(pos);
+                  map.setView([pos.lat, pos.lng], 15);
+                  
+                  // Get address for the location
+                  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}&zoom=18&addressdetails=1`)
+                    .then(response => response.json())
+                    .then(data => {
+                      if (data && data.display_name) {
+                        setAddress(data.display_name);
+                      }
+                    })
+                    .catch(error => {
+                      console.error("Error with geocoding:", error);
+                      setAddress(`Current location`);
+                    });
+                },
+                () => {
+                  toast.error("Error getting your location");
+                }
+              );
+            }
+          }}
+        >
+          <Navigation size={20} />
+        </button>
+      </div>
+    );
+  };
+
+  // Search handler using Nominatim
+  const handleSearch = () => {
+    if (address.trim() === '') return;
+    
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          const location = data[0];
+          const lat = parseFloat(location.lat);
+          const lng = parseFloat(location.lon);
+          
+          setSelectedLocation({ lat, lng });
+          setAddress(location.display_name);
+          
+          if (mapRef.current) {
+            mapRef.current.setView([lat, lng], 15);
+          }
+        } else {
+          toast.error("Location not found. Try a different search term.");
+        }
+      })
+      .catch(error => {
+        console.error("Error with geocoding search:", error);
+        toast.error("Error searching for location. Please try again.");
+      });
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <SiteHeader />
+      <div className="container mx-auto px-4 py-8 pt-24">
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+          <div className="flex items-center">
+            <button 
+              onClick={() => navigate('/')}
+              className="mr-4 p-2 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              <X size={24} />
+            </button>
+            <h1 className="text-2xl font-bold">Select Delivery Location</h1>
+          </div>
+          <button 
+            onClick={handleSaveLocation}
+            className="bg-gradient-to-r from-orange-500 to-pink-500 text-white px-4 py-2 rounded-full flex items-center"
+          >
+            <CheckCircle2 className="mr-2 h-5 w-5" />
+            Save Location
+          </button>
+        </div>
+
+        <div className="flex gap-6 flex-col lg:flex-row">
+          {/* OpenStreetMap Display */}
+          <div className="flex-grow lg:w-2/3 h-[350px] md:h-[400px] lg:h-[500px] rounded-xl overflow-hidden shadow-lg bg-white relative">
+            <MapContainer 
+              center={[16.4419, 80.6226]} 
+              zoom={15} 
+              style={{ height: '100%', width: '100%' }}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <LocationMarker />
+              <MapControls />
+            </MapContainer>
+          </div>
+
+          {/* Location Selection */}
+          <div className="lg:w-1/3">
+            <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg">
+              <div className="relative mb-6">
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full pl-10 pr-14 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-400 outline-none"
+                    placeholder="Enter or search your location"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
+                  {address && (
+                    <button 
+                      onClick={() => setAddress('')}
+                      className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                  <button 
+                    onClick={handleSearch}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 bg-gray-100 hover:bg-gray-200 p-1 rounded-full transition-colors"
+                  >
+                    <Search size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Saved Places</h3>
+                <div className="space-y-2 location-list max-h-[250px] overflow-y-auto">
+                  {mockLocations.map((location, index) => (
+                    <div 
+                      key={index}
+                      onClick={() => selectSavedLocation(location)}
+                      className={`location-card p-3 rounded-lg cursor-pointer flex items-start transition-colors ${
+                        address === location.address ? 'bg-orange-50 border border-orange-200' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      {location.name === "KL University" ? (
+                        <Home className={`mr-2 mt-1 flex-shrink-0 ${address === location.address ? 'text-orange-500' : 'text-gray-400'}`} size={18} />
+                      ) : (
+                        <MapPin className={`mr-2 mt-1 flex-shrink-0 ${address === location.address ? 'text-orange-500' : 'text-gray-400'}`} size={18} />
+                      )}
+                      <div>
+                        <p className="font-medium">{location.name}</p>
+                        <p className="text-sm text-gray-500 line-clamp-2">{location.address}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ToastContainer 
+        position="top-center"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        className="mt-16"
+      />
+    </div>
+  );
+};
+
+const HeroSection = () => {
+  const navigate = useNavigate();
+  const [deliveryType, setDeliveryType] = React.useState('delivery');
+  const [showingNearbyOptions, setShowingNearbyOptions] = React.useState(false);
+  const [nearbyRestaurants, setNearbyRestaurants] = useState([]);
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const userName = localStorage.getItem('userName');
+  const savedAddress = localStorage.getItem('selectedAddress') || 'KL University, Guntur, Andhra Pradesh, India';
+  const savedLat = parseFloat(localStorage.getItem('selectedLat')) || 16.4419;
+  const savedLng = parseFloat(localStorage.getItem('selectedLng')) || 80.6226;
+  
+  // Pizza rotation states
+  const [pizzaRotation, setPizzaRotation] = React.useState(0);
+  const pizzaRef = React.useRef(null);
+  const prevAngleRef = React.useRef(0);
+  const totalRotationRef = React.useRef(0);
+  const [isMouseMoving, setIsMouseMoving] = React.useState(false);
+  const mouseIdleTimerRef = React.useRef(null);
+  const autoRotationRef = React.useRef(null);
+  
+  // Set up automatic rotation
+  React.useEffect(() => {
+    // Function for automatic rotation
+    const rotateAutomatically = () => {
+      if (!isMouseMoving) {
+        // Rotate 0.5 degrees every frame for a slow continuous rotation
+        totalRotationRef.current += 0.5;
+        setPizzaRotation(totalRotationRef.current);
+        autoRotationRef.current = requestAnimationFrame(rotateAutomatically);
+      }
+    };
+    
+    // Start automatic rotation
+    autoRotationRef.current = requestAnimationFrame(rotateAutomatically);
+    
+    // Cleanup
+    return () => {
+      if (autoRotationRef.current) {
+        cancelAnimationFrame(autoRotationRef.current);
+      }
+      if (mouseIdleTimerRef.current) {
+        clearTimeout(mouseIdleTimerRef.current);
+      }
+    };
+  }, [isMouseMoving]);
+  
+  // Mouse movement handler
   React.useEffect(() => {
     const handleMouseMove = (e) => {
       if (pizzaRef.current) {
+        // Set mouse as moving
+        setIsMouseMoving(true);
+        
+        // Cancel automatic rotation
+        if (autoRotationRef.current) {
+          cancelAnimationFrame(autoRotationRef.current);
+        }
+        
+        // Clear any existing idle timer
+        if (mouseIdleTimerRef.current) {
+          clearTimeout(mouseIdleTimerRef.current);
+        }
+        
         const rect = pizzaRef.current.getBoundingClientRect();
         // Calculate the center of the pizza element
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         // Calculate the angle between the mouse pointer and the center (in degrees)
-        const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
-        setPizzaRotation(angle);
+        const rawAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
+        
+        // Convert to 0-360 range
+        const currentAngle = rawAngle < 0 ? rawAngle + 360 : rawAngle;
+        
+        // Handle the case when crossing the 0/360 boundary
+        if (Math.abs(currentAngle - prevAngleRef.current) > 270) {
+          // We crossed the boundary - adjust total rotation
+          if (prevAngleRef.current > 270 && currentAngle < 90) {
+            // Moving clockwise across boundary
+            totalRotationRef.current += (currentAngle + (360 - prevAngleRef.current));
+          } else if (prevAngleRef.current < 90 && currentAngle > 270) {
+            // Moving counter-clockwise across boundary
+            totalRotationRef.current -= ((360 - currentAngle) + prevAngleRef.current);
+          }
+        } else {
+          // Normal case - add the difference
+          totalRotationRef.current += (currentAngle - prevAngleRef.current);
+        }
+        
+        // Store current angle for next comparison
+        prevAngleRef.current = currentAngle;
+        
+        // Use requestAnimationFrame for smoother animation
+        requestAnimationFrame(() => {
+          setPizzaRotation(totalRotationRef.current);
+        });
+        
+        // Set a timer to detect when mouse stops moving
+        mouseIdleTimerRef.current = setTimeout(() => {
+          setIsMouseMoving(false);
+        }, 2000); // Consider mouse idle after 2 seconds of no movement
       }
     };
 
@@ -101,18 +469,191 @@ const HeroSection = () => {
     // Cleanup the listener when the component unmounts
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
+      if (mouseIdleTimerRef.current) {
+        clearTimeout(mouseIdleTimerRef.current);
+      }
+      if (autoRotationRef.current) {
+        cancelAnimationFrame(autoRotationRef.current);
+      }
     };
   }, []);
+  
+  // Search for nearby places using OpenStreetMap Overpass API
+  React.useEffect(() => {
+    if (showingNearbyOptions) {
+      searchNearbyRestaurants();
+    }
+  }, [showingNearbyOptions]);
+  
+  const searchNearbyRestaurants = () => {
+    setIsLoadingPlaces(true);
+    
+    // Using OpenStreetMap's Overpass API to search for restaurants
+    // This is a simplified version; for production, you might want to use a more sophisticated approach
+    const searchTerm = searchQuery || 'restaurant near KL University';
+    const radius = 5000; // 5km radius around KL University
+    
+    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchTerm)}&format=json&limit=5&addressdetails=1&lat=16.4419&lon=80.6226&radius=${radius}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          // Format results to match our restaurant structure
+          const formattedResults = data.map(place => ({
+            name: place.name || place.display_name.split(',')[0],
+            address: place.display_name,
+            distance: calculateDistance(
+              savedLat,
+              savedLng,
+              parseFloat(place.lat),
+              parseFloat(place.lon)
+            ),
+            eta: generateETA(parseFloat(place.lat), parseFloat(place.lon)),
+            id: place.place_id
+          }));
+          
+          setNearbyRestaurants(formattedResults);
+        } else {
+          // Fallback to mock data if API returns no results
+          setNearbyRestaurants([
+            { name: "Campus Cafeteria", address: "KL University, Guntur", distance: "0.1 mi", eta: "5-10 min" },
+            { name: "Green Valley Restaurant", address: "Near KL University", distance: "0.6 mi", eta: "15-20 min" },
+            { name: "Spicy Bites", address: "Vaddeswaram, Guntur", distance: "1.2 mi", eta: "20-25 min" },
+            { name: "Food Court", address: "Mangalagiri Road, Guntur", distance: "2.5 mi", eta: "30-40 min" }
+          ]);
+        }
+        
+        setIsLoadingPlaces(false);
+      })
+      .catch(error => {
+        console.error("Error fetching places:", error);
+        // Fallback to mock data on error
+        setNearbyRestaurants([
+          { name: "Campus Cafeteria", address: "KL University, Guntur", distance: "0.1 mi", eta: "5-10 min" },
+          { name: "Green Valley Restaurant", address: "Near KL University", distance: "0.6 mi", eta: "15-20 min" },
+          { name: "Spicy Bites", address: "Vaddeswaram, Guntur", distance: "1.2 mi", eta: "20-25 min" },
+          { name: "Food Court", address: "Mangalagiri Road, Guntur", distance: "2.5 mi", eta: "30-40 min" }
+        ]);
+        setIsLoadingPlaces(false);
+      });
+  };
+  
+  // Handle search input for restaurants
+  const handleRestaurantSearch = (e) => {
+    setSearchQuery(e.target.value);
+    // Debounce the search to avoid too many API calls
+    const debounceTimeout = setTimeout(() => {
+      searchNearbyRestaurants();
+    }, 500);
+    
+    return () => clearTimeout(debounceTimeout);
+  };
+
+  // Helper function to calculate rough distance
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    // Simple distance calculation using Haversine formula
+    const R = 3958.8; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    
+    return distance.toFixed(1) + " mi";
+  };
+  
+  // Generate a realistic ETA based on distance
+  const generateETA = (lat, lng) => {
+    const distance = calculateDistance(savedLat, savedLng, lat, lng);
+    const distanceValue = parseFloat(distance);
+    
+    // Rough estimate: 5 minutes per mile + 10 minutes preparation
+    const minTime = Math.round(distanceValue * 5 + 10);
+    const maxTime = Math.round(minTime * 1.3); // Add 30% buffer
+    
+    return `${minTime}-${maxTime} min`;
+  };
+  
+  // Handle delivery type change with toast notification
+  const handleDeliveryTypeChange = (type) => {
+    if (type !== deliveryType) {
+      setDeliveryType(type);
+      
+      // Show different toast messages based on the selected type
+      if (type === 'delivery') {
+        toast.info('Switched to delivery mode! 🚚', {
+          position: "top-center",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          icon: "🚚",
+          style: { marginTop: '70px' } // Position below the header
+        });
+        setShowingNearbyOptions(false);
+      } else {
+        toast.info('Switched to pickup mode! 🏪', {
+          position: "top-center",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          icon: "🏪",
+          style: { marginTop: '70px' } // Position below the header
+        });
+        setShowingNearbyOptions(true);
+      }
+    }
+  };
+
+  // Define different delivery/pickup options based on the selected type
+  const deliveryOptions = {
+    delivery: {
+      placeholder: savedAddress || "Enter your delivery address",
+      icon: <Truck className="mr-2 h-5 w-5" />,
+      buttonText: "Deliver Now",
+      timeEstimate: "20-35 min",
+      tooltip: "Delivery to your doorstep"
+    },
+    pickup: {
+      placeholder: "Find restaurants for pickup",
+      icon: <Store className="mr-2 h-5 w-5" />,
+      buttonText: "Find Restaurants",
+      timeEstimate: "10-15 min",
+      tooltip: "Ready for pickup"
+    }
+  };
+
+  // Select current options based on the selected type
+  const currentOptions = deliveryOptions[deliveryType];
+
+  React.useEffect(() => {
+    if (userName) {
+      toast.success(`Welcome back, ${userName}! 😊`, {
+        position: "top-center",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        style: { marginTop: '70px' } // Position below the header
+      });
+    }
+  }, [userName]); // Runs once when component mounts
 
   return (
     <section className="relative min-h-screen overflow-hidden">
       <div className="parallax absolute inset-0" 
            style={{ backgroundImage: "url('/hero-bg.jpg')", transform: 'translateZ(0)' }} />
-      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/70 via-orange-400/60 to-yellow-300/50" />
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/80 via-orange-400/70 to-yellow-300/60" />
       
-      <div className="container mx-auto relative z-10 pt-32 pb-32 px-4">
-        <div className="max-w-2xl backdrop-blur-sm bg-white/10 p-8 rounded-2xl">
-          <h2 className="text-7xl font-bold mb-6 leading-tight text-white">
+      <div className="container mx-auto relative z-10 pt-24 pb-24 px-4">
+        <div className="max-w-2xl backdrop-blur-sm bg-black/20 p-7 rounded-2xl border border-white/10 shadow-xl">
+          <h2 className="text-6xl font-bold mb-5 leading-tight text-white drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]">
             {userName ? (
               <span className="block">
                 Welcome, {userName.split(' ')[0]}!
@@ -124,54 +665,132 @@ const HeroSection = () => {
               </>
             )}
           </h2>
-          <p className="text-xl mb-12 text-white/90 leading-relaxed">
+          <p className="text-xl mb-8 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] leading-relaxed">
             Experience the finest local cuisines delivered right to your doorstep.
             Start your culinary journey today.
           </p>
 
-          <div className="backdrop-blur-md bg-white/80 rounded-2xl p-4 shadow-xl max-w-xl border border-white/20">
-            <div className="flex gap-2 mb-6">
+          <div className="backdrop-blur-md bg-white/80 rounded-2xl p-4 shadow-xl max-w-xl border border-white/20 transition-all duration-300 ease-in-out">
+            <div className="flex gap-2 mb-5 relative">
+              <div className="absolute h-full top-0 bottom-0 left-0 right-0 bg-gray-100 rounded-full -z-10" />
+              <div 
+                className={`absolute h-full top-0 bottom-0 rounded-full transition-all duration-300 ease-in-out -z-10 ${
+                  deliveryType === 'delivery' ? 'left-0 right-1/2' : 'left-1/2 right-0'
+                } bg-gradient-to-r from-orange-500 to-pink-500`} 
+              />
               {['delivery', 'pickup'].map((type) => (
                 <button
                   key={type}
-                  onClick={() => setDeliveryType(type)}
-                  className={`flex-1 rounded-full text-lg py-2 px-4 flex items-center justify-center ${
+                  onClick={() => handleDeliveryTypeChange(type)}
+                  className={`flex-1 rounded-full text-base py-2 px-4 flex items-center justify-center transition-all duration-300 ${
                     deliveryType === type
-                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white'
-                      : 'bg-transparent text-gray-700'
+                      ? 'text-white font-medium transform scale-105'
+                      : 'text-gray-700 hover:text-gray-900'
                   }`}
                 >
                   {type === 'delivery' ? (
-                    <Truck className="mr-2 h-5 w-5" />
+                    <Truck className={`mr-2 h-5 w-5 transition-all duration-300 ${deliveryType === type ? 'text-white' : 'text-gray-500'}`} />
                   ) : (
-                    <Store className="mr-2 h-5 w-5" />
+                    <Store className={`mr-2 h-5 w-5 transition-all duration-300 ${deliveryType === type ? 'text-white' : 'text-gray-500'}`} />
                   )}
                   {type.charAt(0).toUpperCase() + type.slice(1)}
                 </button>
               ))}
             </div>
 
-            <div className="flex gap-3">
-              <div className="flex-1 relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Enter your delivery address"
-                  className="w-full pl-12 pr-4 py-3 rounded-full text-lg border border-gray-200"
-                />
+            {/* Delivery Options or Pickup Options */}
+            {!showingNearbyOptions ? (
+              <div className="flex gap-3">
+                <div className="flex-1 relative group">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-orange-500 transition-colors duration-300" />
+                  <input
+                    type="text"
+                    placeholder={currentOptions.placeholder}
+                    value={savedAddress || ""}
+                    readOnly
+                    className="w-full pl-11 pr-4 py-2.5 rounded-full text-base border border-gray-200 group-hover:border-orange-300 transition-all duration-300 focus:ring-2 focus:ring-orange-200 focus:border-orange-400 outline-none cursor-pointer"
+                    onClick={() => navigate('/map')}
+                  />
+                  {savedAddress && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Saved
+                    </div>
+                  )}
+                </div>
+                <button 
+                  onClick={() => navigate('/map')}
+                  className="bg-white text-orange-600 border border-orange-200 hover:bg-orange-50 rounded-full px-4 py-2.5 text-base flex items-center transition-all duration-300 hover:shadow-sm"
+                >
+                  <MapIcon className="h-5 w-5 mr-2" />
+                  Pick on Map
+                </button>
+                <button className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-full px-6 py-2.5 text-base flex items-center transition-all duration-300 hover:shadow-lg transform hover:scale-105">
+                  {currentOptions.buttonText}
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </button>
               </div>
-              <button className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-full px-8 py-3 text-lg flex items-center">
-                Find Food
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </button>
-            </div>
+            ) : (
+              <div className="bg-white rounded-xl p-3 border border-gray-100">
+                <div className="mb-3 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search nearby restaurants"
+                    className="w-full pl-9 pr-4 py-2 rounded-full text-sm border border-gray-200 focus:ring-2 focus:ring-orange-200 focus:border-orange-400 outline-none"
+                    value={searchQuery}
+                    onChange={handleRestaurantSearch}
+                  />
+                  {searchQuery && (
+                    <button 
+                      onClick={() => {
+                        setSearchQuery('');
+                        searchNearbyRestaurants();
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+                
+                <div className="max-h-[200px] overflow-y-auto space-y-2 location-list">
+                  {isLoadingPlaces ? (
+                    <div className="py-4 text-center text-gray-500">Loading nearby restaurants...</div>
+                  ) : nearbyRestaurants.length === 0 ? (
+                    <div className="py-4 text-center text-gray-500">No restaurants found nearby</div>
+                  ) : (
+                    nearbyRestaurants.map((restaurant, index) => (
+                      <div 
+                        key={index}
+                        className="location-card flex items-center justify-between p-2 hover:bg-orange-50 rounded-lg cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center">
+                          <div className="bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center mr-3">
+                            <Store className="h-5 w-5 text-gray-500" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{restaurant.name}</h4>
+                            <p className="text-xs text-gray-500">{restaurant.address} • {restaurant.distance}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-700">
+                          <Clock className="h-4 w-4 mr-1 text-orange-500" />
+                          {restaurant.eta}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Pizza container: rotates based on the mouse pointer */}
+      {/* Pizza container: rotates based on the mouse pointer with smoother animation */}
       <div
-        className="absolute right-0 top-1/2 hidden lg:block"
+        className="absolute right-0 top-1/2 hidden lg:block pizza-rotation"
         ref={pizzaRef}
         style={{ transform: `translateY(-50%) rotate(${pizzaRotation}deg)`, transformOrigin: 'center' }}
       >
@@ -303,11 +922,11 @@ const FoodGrid = () => {
                       alt={food.title}
                       className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     <div className="absolute bottom-4 left-4 right-4 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
                       <div className="flex gap-2">
                         {food.tags.map((tag) => (
-                          <span key={tag} className="bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-full">
+                          <span key={tag} className="bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-full font-medium">
                             {tag}
                           </span>
                         ))}
@@ -348,7 +967,18 @@ const HomePage = () => (
       <CategoriesSection />
       <FoodGrid />
     </main>
-    <ToastContainer />
+    <ToastContainer 
+      position="top-center"
+      autoClose={3000}
+      hideProgressBar={false}
+      newestOnTop
+      closeOnClick
+      rtl={false}
+      pauseOnFocusLoss
+      draggable
+      pauseOnHover
+      className="mt-16"
+    />
   </div>
 );
 
@@ -357,6 +987,7 @@ const App = () => {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/map" element={<MapSelector />} />
         <Route path="/" element={<HomePage />} />
       </Routes>
     </Router>
