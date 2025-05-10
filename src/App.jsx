@@ -855,6 +855,7 @@ const HeroSection = () => {
 };
 
 const CategoriesSection = () => {
+    const navigate = useNavigate();
     const categories = [
         { icon: Pizza, name: "Pizza", count: "" },
         { icon: Salad, name: "Healthy", count: "" },
@@ -864,6 +865,24 @@ const CategoriesSection = () => {
         { icon: Utensils, name: "More", count: "" }
       ];
     
+      const handleCategoryClick = () => {
+        const userName = localStorage.getItem('userName');
+        if (!userName) {
+          // Redirect to login if not logged in
+          toast.error('Please login to view restaurants', {
+            position: "top-right",
+            autoClose: 2000
+          });
+          navigate('/login');
+        } else {
+          // Simply navigate to restaurants page
+          navigate('/restaurants');
+          toast.info('Browsing restaurants', {
+            position: "top-right",
+            autoClose: 2000
+          });
+        }
+      };
 
       return (
         <section className="py-20 bg-gray-50">
@@ -877,7 +896,8 @@ const CategoriesSection = () => {
               {categories.map((category) => (
                 <div
                   key={category.name}
-                  className="group relative overflow-hidden rounded-2xl bg-white p-6 text-center shadow-lg transition-transform hover:-translate-y-1 hover:shadow-xl"
+                  onClick={handleCategoryClick}
+                  className="group relative overflow-hidden rounded-2xl bg-white p-6 text-center shadow-lg transition-transform hover:-translate-y-1 hover:shadow-xl cursor-pointer"
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <category.icon className="mx-auto h-12 w-12 text-orange-500 mb-4" />
@@ -892,119 +912,228 @@ const CategoriesSection = () => {
 };
 
 const FoodGrid = () => {
-    const foods = [
-        {
-          id: 1,
-          image: "/food.jpg",
-          title: "Spicy Ramen Bowl",
-          restaurant: "Noodle House",
-          rating: 4.8,
-          reviews: 234,
-          price: "200₹",
-          time: "20-30 min",
+    const [trendingItems, setTrendingItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showAll, setShowAll] = useState(false);
+    const navigate = useNavigate();
 
+    useEffect(() => {
+      const fetchTrendingItems = async () => {
+        setLoading(true);
+        const API_URL = 'http://localhost:8080/api';
 
-          tags: ["Japanese", "Spicy", "Popular"]
-
-        },
-        {
-          id: 2,  
-          image: "/food.jpg",
-
-
-          title: "Mediterranean Pasta",
-          restaurant: "Bella Italia",
-          rating: 4.6,
-          reviews: 189,
-          price: "250₹",
-
-
-          time: "25-35 min",
-          tags: ["Italian", "Vegetarian"]
-        },
-        {
-          id: 3,
-          image: "/food.jpg",
-
-
-          title: "Fresh Garden Bowl",
-          restaurant: "Green Eats",
-          rating: 4.9,
-          reviews: 156,
-          price: "300₹",
-
-
-          time: "15-25 min",
-          tags: ["Healthy", "Vegan"]
-        },
-        {
-          id: 4,
-          image: "/food.jpg",
-
-          title: "Spicy Thai Curry",
-          restaurant: "Thai Flavors",
-          rating: 4.7,
-          reviews: 203,
-          price: "300₹",
-
-          time: "30-40 min",
-          tags: ["Thai", "Spicy"]
+        try {
+          // Fetch all menu items
+          const response = await axios.get(`${API_URL}/menu-items`);
+          
+          // Get a list of restaurants to add restaurant names to menu items
+          const restaurantsResponse = await axios.get(`${API_URL}/restaurants`);
+          const restaurants = restaurantsResponse.data;
+          
+          // Transform and add restaurant information to menu items
+          const menuItemsWithRestaurant = response.data.map(item => {
+            const restaurant = restaurants.find(r => r.id === item.restaurant);
+            return {
+              id: item.id,
+              title: item.name,
+              description: item.description,
+              price: `₹${item.price}`,
+              image: item.imageUrl || "/food.jpg",
+              restaurant: restaurant ? restaurant.name : "Restaurant",
+              restaurantId: item.restaurant,
+              rating: (4 + Math.random()).toFixed(1), // Generate a random high rating between 4.0-5.0
+              reviews: Math.floor(Math.random() * 300) + 50, // Random number of reviews
+              time: `${Math.floor(Math.random() * 15) + 15}-${Math.floor(Math.random() * 15) + 30} min`, // Random delivery time
+              tags: item.tags || ["Popular"], // Use actual tags or default to "Popular"
+              isVeg: item.isVeg
+            };
+          });
+          
+          // Sort by "rating" and take top 8 items to show as trending
+          const sortedItems = menuItemsWithRestaurant
+            .sort((a, b) => b.rating - a.rating)
+            .slice(0, 8);
+          
+          setTrendingItems(sortedItems);
+        } catch (error) {
+          console.error("Error fetching trending items:", error);
+          // Fallback to static data if API fails
+          setTrendingItems([
+            {
+              id: 1,
+              image: "/food.jpg",
+              title: "Spicy Ramen Bowl",
+              restaurant: "Noodle House",
+              restaurantId: 1,
+              rating: 4.8,
+              reviews: 234,
+              price: "₹200",
+              time: "20-30 min",
+              tags: ["Japanese", "Spicy", "Popular"]
+            },
+            {
+              id: 2,  
+              image: "/food.jpg",
+              title: "Mediterranean Pasta",
+              restaurant: "Bella Italia",
+              restaurantId: 2,
+              rating: 4.6,
+              reviews: 189,
+              price: "₹250",
+              time: "25-35 min",
+              tags: ["Italian", "Vegetarian"]
+            },
+            {
+              id: 3,
+              image: "/food.jpg",
+              title: "Fresh Garden Bowl",
+              restaurant: "Green Eats",
+              restaurantId: 3,
+              rating: 4.9,
+              reviews: 156,
+              price: "₹300",
+              time: "15-25 min",
+              tags: ["Healthy", "Vegan"]
+            },
+            {
+              id: 4,
+              image: "/food.jpg",
+              title: "Spicy Thai Curry",
+              restaurant: "Thai Flavors",
+              restaurantId: 4,
+              rating: 4.7,
+              reviews: 203,
+              price: "₹300",
+              time: "30-40 min",
+              tags: ["Thai", "Spicy"]
+            }
+          ]);
+        } finally {
+          setLoading(false);
         }
-      ];
+      };
+
+      fetchTrendingItems();
+    }, []);
     
-      return (
-        <section className="py-20">
-          <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold mb-4">Trending Now</h2>
-            <p className="text-gray-600 mb-12">Our most popular and highly rated dishes</p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {foods.map((food) => (
-                <div
-                  key={food.id}
-                  className="group rounded-2xl overflow-hidden bg-white shadow-lg hover:shadow-xl transition-all duration-300"
-                >
-                  <div className="relative overflow-hidden">
-                    <img
-                      src={food.image || "/placeholder.svg"}
-                      alt={food.title}
-                      className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="absolute bottom-4 left-4 right-4 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                      <div className="flex gap-2">
-                        {food.tags.map((tag) => (
-                          <span key={tag} className="bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-full font-medium">
-                            {tag}
+    // Display only first row items or all items based on showAll state
+    const displayItems = showAll ? trendingItems : trendingItems.slice(0, 4);
+    
+    const toggleShowAll = () => {
+      setShowAll(!showAll);
+    };
+    
+    const handleFoodItemClick = (food) => {
+      if (food.restaurantId) {
+        navigate(`/restaurants/${food.restaurantId}`);
+        toast.info(`Viewing ${food.restaurant}`, {
+          position: "top-right",
+          autoClose: 2000
+        });
+      } else {
+        toast.error("Restaurant information not available", {
+          position: "top-right",
+          autoClose: 2000
+        });
+      }
+    };
+    
+    return (
+      <section className="py-20">
+        <div className="container mx-auto px-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-3xl font-bold">Trending Now</h2>
+            {trendingItems.length > 4 && (
+              <button 
+                onClick={toggleShowAll}
+                className="text-orange-500 hover:text-orange-600 font-medium flex items-center"
+              >
+                {showAll ? 'Show Less' : 'View More'}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <p className="text-gray-600 mb-12">Our most popular and highly rated dishes from all restaurants</p>
+          
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-12 h-12 border-4 border-gray-200 border-t-orange-500 rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                {displayItems.map((food) => (
+                  <div
+                    key={food.id}
+                    className="group rounded-2xl overflow-hidden bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
+                    onClick={() => handleFoodItemClick(food)}
+                  >
+                    <div className="relative overflow-hidden">
+                      <img
+                        src={food.image || "/placeholder.svg"}
+                        alt={food.title}
+                        className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute top-4 right-4">
+                        {food.isVeg ? (
+                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                            Veg
                           </span>
-                        ))}
+                        ) : (
+                          <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium">
+                            Non-Veg
+                          </span>
+                        )}
                       </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-semibold text-lg mb-1">{food.title}</h3>
-                        <p className="text-gray-600 text-sm">{food.restaurant}</p>
-                      </div>
-                      <div className="flex items-center bg-orange-50 px-2 py-1 rounded-lg">
-                        <Star className="h-4 w-4 text-orange-500 fill-orange-500" />
-                        <span className="ml-1 text-sm font-medium">{food.rating}</span>
+                      <div className="absolute bottom-4 left-4 right-4 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                        <div className="flex gap-2 flex-wrap">
+                          {food.tags && food.tags.map((tag) => (
+                            <span key={tag} className="bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-full font-medium">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="text-gray-600 text-sm">{food.time}</div>
-                      <div className="text-lg font-semibold text-orange-600">{food.price}</div>
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h3 className="font-semibold text-lg mb-1">{food.title}</h3>
+                          <p className="text-gray-600 text-sm">{food.restaurant}</p>
+                        </div>
+                        <div className="flex items-center bg-orange-50 px-2 py-1 rounded-lg">
+                          <Star className="h-4 w-4 text-orange-500 fill-orange-500" />
+                          <span className="ml-1 text-sm font-medium">{food.rating}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="text-gray-600 text-sm">{food.time}</div>
+                        <div className="text-lg font-semibold text-orange-600">{food.price}</div>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+              
+              {!showAll && trendingItems.length > 4 && (
+                <div className="flex justify-center mt-8">
+                  <button 
+                    onClick={toggleShowAll}
+                    className="bg-white border border-orange-200 text-orange-500 hover:bg-orange-50 font-medium rounded-full px-5 py-2 flex items-center shadow-sm hover:shadow transition-all"
+                  >
+                    View All Trending Items
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      );
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    );
 };
 
 const HomePage = () => (
@@ -1138,22 +1267,10 @@ const RestaurantsPage = () => {
           const lat = restaurant.lat || savedLat + (Math.random() - 0.5) * 0.05;
           const lng = restaurant.lng || savedLng + (Math.random() - 0.5) * 0.05;
           const distance = parseFloat(calculateDistance(savedLat, savedLng, lat, lng));
-          
-          // Properly handle cuisine - could be array, comma-separated string, or single string
-          let cuisineArray;
-          if (Array.isArray(restaurant.cuisine)) {
-            cuisineArray = restaurant.cuisine;
-          } else if (typeof restaurant.cuisine === 'string' && restaurant.cuisine.includes(',')) {
-            // Split the comma-separated string and trim whitespace from each item
-            cuisineArray = restaurant.cuisine.split(',').map(item => item.trim());
-          } else {
-            cuisineArray = [restaurant.cuisine || 'Various'];
-          }
         
           return {
             id: restaurant.id,
             name: restaurant.name,
-            cuisine: cuisineArray,
             address: restaurant.address || 'Address unavailable',
             distance: distance.toFixed(1),
             rating: restaurant.rating || 4.0,
@@ -1189,16 +1306,8 @@ const RestaurantsPage = () => {
       const query = searchQuery.toLowerCase();
       if (
         !restaurant.name.toLowerCase().includes(query) && 
-        !restaurant.address.toLowerCase().includes(query) &&
-        !restaurant.cuisine.some(c => c.toLowerCase().includes(query))
+        !restaurant.address.toLowerCase().includes(query)
       ) {
-        return false;
-      }
-    }
-
-    // Cuisine filter
-    if (selectedFilters.cuisine.length > 0) {
-      if (!restaurant.cuisine.some(c => selectedFilters.cuisine.includes(c))) {
         return false;
       }
     }
@@ -1486,13 +1595,6 @@ const RestaurantsPage = () => {
                               {restaurant.rating} <Star className="inline h-3 w-3 fill-current" />
                             </div>
                             <span>{restaurant.reviewCount} reviews</span>
-                          </div>
-                          <div className="text-sm text-gray-600 mb-2 flex flex-wrap gap-1">
-                            {restaurant.cuisine.map((item, index) => (
-                              <span key={index} className="after:content-[','] last:after:content-[''] after:mr-1">
-                                {item}
-                              </span>
-                            ))}
                           </div>
                         </div>
                         <div className="text-right">

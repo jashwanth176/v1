@@ -12,7 +12,11 @@ import {
   CreditCard,
   Package,
   DollarSign,
-  AlertTriangle
+  AlertTriangle,
+  PlusCircle,
+  Edit,
+  Trash2,
+  CheckCircle
 } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import axios from 'axios';
@@ -84,6 +88,32 @@ const UserDashboard = () => {
     favoriteRestaurant: null,
     monthlyOrders: []
   });
+  const [paymentMethods, setPaymentMethods] = useState([
+    { id: 1, type: 'Credit Card', last4: '4242', expiry: '05/25', default: true },
+    { id: 2, type: 'Debit Card', last4: '8765', expiry: '09/26', default: false }
+  ]);
+  const [addresses, setAddresses] = useState([
+    { 
+      id: 1, 
+      name: 'KL University', 
+      line1: 'Vaddeswaram', 
+      line2: 'Guntur District', 
+      city: 'Guntur', 
+      state: 'Andhra Pradesh', 
+      postal: '522302', 
+      default: true 
+    },
+    { 
+      id: 2, 
+      name: 'Home', 
+      line1: '123 Main Street', 
+      line2: 'Apartment 4B', 
+      city: 'Vijayawada', 
+      state: 'Andhra Pradesh', 
+      postal: '520001', 
+      default: false 
+    }
+  ]);
   
   const userName = localStorage.getItem('userName');
   const userEmail = localStorage.getItem('userEmail') || `${userName?.toLowerCase().replace(/\s+/g, '')}@example.com`;
@@ -235,6 +265,26 @@ const UserDashboard = () => {
     navigate('/');
   };
 
+  const handleSetDefaultPayment = (id) => {
+    setPaymentMethods(methods => 
+      methods.map(method => ({
+        ...method,
+        default: method.id === id
+      }))
+    );
+    toast.success('Default payment method updated');
+  };
+
+  const handleSetDefaultAddress = (id) => {
+    setAddresses(addrs => 
+      addrs.map(addr => ({
+        ...addr,
+        default: addr.id === id
+      }))
+    );
+    toast.success('Default address updated');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <SiteHeader />
@@ -282,6 +332,26 @@ const UserDashboard = () => {
                 >
                   <BarChart2 className="w-5 h-5" />
                   <span>Analytics</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('payment')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === 'payment' ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <CreditCard className="w-5 h-5" />
+                  <span>Payment Methods</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('addresses')}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === 'addresses' ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <MapPin className="w-5 h-5" />
+                  <span>Saved Addresses</span>
                 </button>
 
                 <button
@@ -512,6 +582,105 @@ const UserDashboard = () => {
                 </div>
               )}
 
+              {activeTab === 'payment' && (
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-6">Payment Methods</h3>
+                  
+                  <div className="space-y-4">
+                    {paymentMethods.map(method => (
+                      <div key={method.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-12 h-8 bg-blue-100 rounded flex items-center justify-center">
+                              <CreditCard className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <div>
+                              <div className="flex items-center">
+                                <h4 className="font-medium">{method.type} •••• {method.last4}</h4>
+                                {method.default && (
+                                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Default</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-500">Expires {method.expiry}</p>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            {!method.default && (
+                              <button 
+                                onClick={() => handleSetDefaultPayment(method.id)}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded-full"
+                                title="Set as default"
+                              >
+                                <CheckCircle className="w-5 h-5" />
+                              </button>
+                            )}
+                            <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-full" title="Edit">
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button className="p-2 text-red-600 hover:bg-red-50 rounded-full" title="Remove">
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    <button className="mt-4 w-full flex items-center justify-center space-x-2 bg-orange-500 text-white py-3 px-4 rounded-lg hover:bg-orange-600 transition-colors">
+                      <PlusCircle className="w-5 h-5" />
+                      <span>Add Payment Method</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'addresses' && (
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-6">Saved Addresses</h3>
+                  
+                  <div className="space-y-4">
+                    {addresses.map(address => (
+                      <div key={address.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between">
+                          <div>
+                            <div className="flex items-center mb-1">
+                              <h4 className="font-medium">{address.name}</h4>
+                              {address.default && (
+                                <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Default</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-700">{address.line1}</p>
+                            {address.line2 && <p className="text-sm text-gray-700">{address.line2}</p>}
+                            <p className="text-sm text-gray-700">{address.city}, {address.state} {address.postal}</p>
+                          </div>
+                          <div className="flex space-x-2">
+                            {!address.default && (
+                              <button 
+                                onClick={() => handleSetDefaultAddress(address.id)}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded-full"
+                                title="Set as default"
+                              >
+                                <CheckCircle className="w-5 h-5" />
+                              </button>
+                            )}
+                            <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-full" title="Edit">
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button className="p-2 text-red-600 hover:bg-red-50 rounded-full" title="Remove">
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    <button className="mt-4 w-full flex items-center justify-center space-x-2 bg-orange-500 text-white py-3 px-4 rounded-lg hover:bg-orange-600 transition-colors">
+                      <PlusCircle className="w-5 h-5" />
+                      <span>Add New Address</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'security' && (
                 <div>
                   <h3 className="text-2xl font-bold text-gray-800 mb-6">Security Settings</h3>
@@ -530,32 +699,6 @@ const UserDashboard = () => {
                       >
                         Setup
                       </Link>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <CreditCard className="w-6 h-6 text-orange-500" />
-                        <div>
-                          <h4 className="font-medium">Payment Methods</h4>
-                          <p className="text-sm text-gray-600">Manage your saved payment methods</p>
-                        </div>
-                      </div>
-                      <button className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors">
-                        Manage
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <MapPin className="w-6 h-6 text-orange-500" />
-                        <div>
-                          <h4 className="font-medium">Saved Addresses</h4>
-                          <p className="text-sm text-gray-600">Manage your delivery addresses</p>
-                        </div>
-                      </div>
-                      <button className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors">
-                        Manage
-                      </button>
                     </div>
                   </div>
                 </div>

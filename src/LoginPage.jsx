@@ -153,29 +153,31 @@ function LoginPage() {
         toast.success("Account created successfully!");
         navigate("/");
       } else {
-        // Check if user has MFA enabled
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        // Check if MFA is enabled for this user
-        const isMFAEnabled = localStorage.getItem(`mfa_enabled_${user.uid}`);
-        
-        if (isMFAEnabled === 'true') {
-          // If MFA is enabled, redirect to OTP verification
-          navigate('/verify-otp', { 
-            state: { 
-              email: email,
-              password: password,
-              isLogin: true
-            }
-          });
-        } else {
-          // If MFA is not enabled, proceed with normal login
+        try {
+          // Attempt sign in, it may throw MFA required error
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          
+          // If we get here, MFA is not required
+          const user = userCredential.user;
           localStorage.setItem("userName", user.displayName || email.split('@')[0]);
           localStorage.setItem("userEmail", user.email);
           localStorage.setItem("userRole", "user");
           toast.success("Login successful!");
           navigate("/");
+        } catch (error) {
+          if (error.code === 'auth/multi-factor-auth-required') {
+            // If MFA is required, redirect to OTP verification
+            navigate('/verify-otp', { 
+              state: { 
+                email: email,
+                password: password,
+                isLogin: true
+              }
+            });
+          } else {
+            // Re-throw the error to be caught by the outer catch block
+            throw error;
+          }
         }
       }
     } catch (error) {
