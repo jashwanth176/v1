@@ -1,0 +1,9 @@
+com\foodiehub\controller\RestaurantController.class
+com\foodiehub\service\MenuItemService.class
+com\foodiehub\controller\MenuItemController.class
+com\foodiehub\repository\MenuItemRepository.class
+com\foodiehub\repository\RestaurantRepository.class
+com\foodiehub\model\MenuItem.class
+com\foodiehub\model\Restaurant.class
+com\foodiehub\service\RestaurantService.class
+com\foodiehub\FoodieHubApplication.class

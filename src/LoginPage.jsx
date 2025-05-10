@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { Link, useNavigate } from 'react-router-dom';
 import { initializeApp } from 'firebase/app';
@@ -10,8 +10,9 @@ import {
   signInWithEmailAndPassword,
   updateProfile 
 } from 'firebase/auth';
-import { toast, ToastContainer } from 'react-toastify';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { FaShield } from 'react-icons/fa6';
 
 const firebaseConfig = {
     apiKey: "AIzaSyAeCeaEhnXG_OYNenxf3obf3aHsckyo7v8",
@@ -34,6 +35,7 @@ function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const navigate = useNavigate();
 
@@ -56,6 +58,7 @@ function LoginPage() {
 
       // Store user's name in localStorage or your state management solution
       localStorage.setItem('userName', user.displayName);
+      localStorage.setItem('userEmail', user.email);
       
       navigate('/');
     } catch (error) {
@@ -98,6 +101,21 @@ function LoginPage() {
     setIsLoading(true);
     try {
       let userCredential;
+      
+      // Admin login check - hardcoded for now, would be replaced with backend verification
+      if (isAdmin && email === 'admin@foodiehub.com' && password === 'admin123') {
+        localStorage.setItem('userName', 'Admin');
+        localStorage.setItem('userRole', 'admin');
+        
+        toast.success('Welcome Admin! 👋', {
+          position: "top-right",
+          autoClose: 3000,
+        });
+        
+        navigate('/admin-dashboard');
+        return;
+      }
+      
       if (isSignUp) {
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
         // Update profile with name
@@ -120,8 +138,10 @@ function LoginPage() {
         draggable: true,
       });
 
-      // Store user's name
+      // Store user's name and role
       localStorage.setItem('userName', userName);
+      localStorage.setItem('userEmail', userCredential.user.email);
+      localStorage.setItem('userRole', 'user');
 
       navigate('/');
     } catch (error) {
@@ -134,10 +154,19 @@ function LoginPage() {
 
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
+    setIsAdmin(false);
     setEmail('');
     setPassword('');
     setConfirmPassword('');
     setName('');
+    setPasswordError('');
+  };
+  
+  const toggleAdminMode = () => {
+    setIsAdmin(!isAdmin);
+    setIsSignUp(false);
+    setEmail(isAdmin ? '' : 'admin@foodiehub.com');
+    setPassword('');
     setPasswordError('');
   };
 
@@ -151,12 +180,12 @@ function LoginPage() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800">Welcome to FoodieHub</h1>
           <p className="mt-2 text-lg text-gray-600">
-            {isSignUp ? 'Create an account' : 'Sign in to continue'}
+            {isAdmin ? 'Admin Login' : (isSignUp ? 'Create an account' : 'Sign in to continue')}
           </p>
         </div>
 
         <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
-          {isSignUp && (
+          {isSignUp && !isAdmin && (
             <div>
               <input
                 type="text"
@@ -188,7 +217,7 @@ function LoginPage() {
               required
             />
           </div>
-          {isSignUp && (
+          {isSignUp && !isAdmin && (
             <div>
               <input
                 type="password"
@@ -205,38 +234,53 @@ function LoginPage() {
           )}
           <button
             type="submit"
-            className="w-full bg-indigo-600 text-white rounded-lg py-3 font-medium hover:bg-indigo-700 transition-colors"
+            className={`w-full ${isAdmin ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-lg py-3 font-medium transition-colors`}
             disabled={isLoading}
           >
-            {isLoading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+            {isLoading ? 'Processing...' : (isAdmin ? 'Admin Login' : (isSignUp ? 'Sign Up' : 'Sign In'))}
           </button>
         </form>
 
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or continue with</span>
-          </div>
-        </div>
+        {!isAdmin && (
+          <>
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              </div>
+            </div>
 
-        <button
-          onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center border border-gray-300 rounded-lg py-3 px-4 hover:bg-gray-50 transition-colors"
-          disabled={isLoading}
-        >
-          <FcGoogle className="text-2xl mr-3" />
-          <span className="font-medium">Continue with Google</span>
-        </button>
+            <button
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center border border-gray-300 rounded-lg py-3 px-4 hover:bg-gray-50 transition-colors"
+              disabled={isLoading}
+            >
+              <FcGoogle className="text-2xl mr-3" />
+              <span className="font-medium">Continue with Google</span>
+            </button>
+          </>
+        )}
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center flex flex-col gap-2">
+          {!isAdmin && (
+            <button
+              onClick={toggleMode}
+              className="text-sm text-indigo-600 hover:underline"
+            >
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </button>
+          )}
+          
           <button
-            onClick={toggleMode}
-            className="text-sm text-indigo-600 hover:underline"
+            onClick={toggleAdminMode}
+            className="text-sm text-red-600 hover:underline flex items-center justify-center gap-1 mx-auto"
           >
-            {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            <FaShield className="text-xs" />
+            {isAdmin ? 'Back to User Login' : 'Admin Login'}
           </button>
+          
           <div className="mt-2">
             <Link to="/" className="text-sm text-gray-600 hover:underline">
               Back to Home
@@ -244,7 +288,6 @@ function LoginPage() {
           </div>
         </div>
       </div>
-      <ToastContainer />
     </div>
   );
 }
