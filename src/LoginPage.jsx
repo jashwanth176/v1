@@ -8,11 +8,13 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile 
+  updateProfile,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FaShield } from 'react-icons/fa6';
+import { Eye, EyeOff } from "lucide-react";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAeCeaEhnXG_OYNenxf3obf3aHsckyo7v8",
@@ -37,6 +39,7 @@ function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleGoogleLogin = async () => {
@@ -100,55 +103,70 @@ function LoginPage() {
 
     setIsLoading(true);
     try {
-      let userCredential;
-      
-      // Admin login check - hardcoded for now, would be replaced with backend verification
-      if (isAdmin && email === 'admin@foodiehub.com' && password === 'admin123') {
-        localStorage.setItem('userName', 'Admin');
-        localStorage.setItem('userRole', 'admin');
-        
-        toast.success('Welcome Admin! 👋', {
-          position: "top-right",
-          autoClose: 3000,
-        });
-        
-        navigate('/admin-dashboard');
-        return;
-      }
-      
       if (isSignUp) {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         // Update profile with name
         await updateProfile(userCredential.user, {
           displayName: name
         });
+        localStorage.setItem("userName", name);
+        localStorage.setItem("userEmail", email);
+        localStorage.setItem("userRole", "user");
+        toast.success("Account created successfully!");
+        navigate("/");
       } else {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
+        // Check if user has MFA enabled
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        // Check if MFA is enabled for this user
+        const isMFAEnabled = localStorage.getItem(`mfa_enabled_${user.uid}`);
+        
+        if (isMFAEnabled === 'true') {
+          // If MFA is enabled, redirect to OTP verification
+          navigate('/verify-otp', { 
+            state: { 
+              email: email,
+              password: password,
+              isLogin: true
+            }
+          });
+        } else {
+          // If MFA is not enabled, proceed with normal login
+          localStorage.setItem("userName", user.displayName || email.split('@')[0]);
+          localStorage.setItem("userEmail", user.email);
+          localStorage.setItem("userRole", "user");
+          toast.success("Login successful!");
+          navigate("/");
+        }
       }
+    } catch (error) {
+      console.error("Auth error:", error);
+      toast.error(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      const userName = isSignUp ? name : userCredential.user.displayName;
-      
-      // Show success toast
-      toast.success(`Welcome, ${userName || 'User'}! 👋`, {
+  const handlePasswordReset = async () => {
+    if (!email) {
+      toast.error('Please enter your email address first');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success('Password reset email sent! Check your inbox.', {
         position: "top-right",
-        autoClose: 3000,
+        autoClose: 5000,
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
         draggable: true,
       });
-
-      // Store user's name and role
-      localStorage.setItem('userName', userName);
-      localStorage.setItem('userEmail', userCredential.user.email);
-      localStorage.setItem('userRole', 'user');
-
-      navigate('/');
     } catch (error) {
-      console.error("Email auth error: ", error);
+      console.error("Password reset error: ", error);
       toast.error(error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -208,14 +226,32 @@ function LoginPage() {
             />
           </div>
           <div>
-            <input
-              type="password"
-              placeholder="Password"
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <div className="mt-1 relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-500"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
           </div>
           {isSignUp && !isAdmin && (
             <div>
@@ -231,6 +267,17 @@ function LoginPage() {
           )}
           {passwordError && (
             <p className="text-red-500 text-sm mt-1">{passwordError}</p>
+          )}
+          {!isSignUp && !isAdmin && (
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={handlePasswordReset}
+                className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
+              >
+                Forgot Password?
+              </button>
+            </div>
           )}
           <button
             type="submit"

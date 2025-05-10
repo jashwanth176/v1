@@ -9,6 +9,12 @@ import OffersPage from './OffersPage';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import 'leaflet/dist/leaflet.css';
+import MFASetup from './components/MFASetup';
+import OTPVerification from './components/OTPVerification';
+import UserDashboard from './components/UserDashboard';
+
+
+
 
 const SiteHeader = () => {
   const handleLogout = () => {
@@ -58,6 +64,12 @@ const SiteHeader = () => {
           {userName ? (
             <div className="flex items-center space-x-4">
               <span className="text-gray-700">Hello, {userName.split(' ')[0]}</span>
+              <Link
+                to="/dashboard"
+                className="text-gray-700 hover:text-orange-600 transition-colors"
+              >
+                Dashboard
+              </Link>
               <button
                 onClick={handleLogout}
                 className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-4 py-2 rounded-full flex items-center"
@@ -1642,6 +1654,9 @@ function App() {
           <Route path="/map" element={<MapSelector />} />
           <Route path="/restaurants" element={<RestaurantsPage />} />
           <Route path="/offers" element={<OffersPage />} />
+          <Route path="/setup-mfa" element={<MFASetup />} />
+          <Route path="/verify-otp" element={<OTPVerification />} />
+          <Route path="/dashboard" element={<UserDashboard />} />
         </Routes>
         {/* Single ToastContainer for the entire application */}
         <ToastContainer 
