@@ -2,94 +2,28 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { FaStore, FaPencilAlt, FaTrash, FaPlus, FaSignOutAlt, FaHome, FaUtensils } from 'react-icons/fa';
+import { FaStore, FaPencilAlt, FaTrash, FaPlus, FaSignOutAlt, FaHome, FaUtensils, FaList } from 'react-icons/fa';
 import { Search } from 'lucide-react';
+import axios from 'axios';
+import MenuItemManagement from './components/MenuItemManagement';
 
-// Mock restaurant data
-const mockRestaurants = [
-  {
-    id: 1,
-    name: "Thai Spice",
-    image: "https://images.unsplash.com/photo-1559339352-11d035aa65de?q=80&w=3374&auto=format&fit=crop",
-    cuisine: "Thai",
-    rating: 4.5,
-    deliveryTime: "25-35",
-    priceRange: "$$",
-    address: "Near KL University, Green Fields, Guntur",
-    distance: "1.2 km",
-    status: "active"
-  },
-  {
-    id: 2,
-    name: "Burger Junction",
-    image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=3398&auto=format&fit=crop",
-    cuisine: "American",
-    rating: 4.2,
-    deliveryTime: "15-25",
-    priceRange: "$",
-    address: "123 College Road, Vaddeswaram, Guntur",
-    distance: "0.5 km",
-    status: "active"
-  },
-  {
-    id: 3,
-    name: "Roma Italian",
-    image: "https://images.unsplash.com/photo-1579684947550-23c9450c58cd?q=80&w=3474&auto=format&fit=crop",
-    cuisine: "Italian",
-    rating: 4.7,
-    deliveryTime: "30-40",
-    priceRange: "$$$",
-    address: "Vidya Nagar, Near KL University, Guntur",
-    distance: "0.8 km",
-    status: "active"
-  },
-  {
-    id: 4,
-    name: "Biryani House",
-    image: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=3387&auto=format&fit=crop",
-    cuisine: "Indian",
-    rating: 4.8,
-    deliveryTime: "20-30",
-    priceRange: "$$",
-    address: "KL Campus Road, Vaddeswaram, Guntur",
-    distance: "0.2 km",
-    status: "inactive"
-  },
-  {
-    id: 5,
-    name: "Sushi Kingdom",
-    image: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=3840&auto=format&fit=crop",
-    cuisine: "Japanese",
-    rating: 4.6,
-    deliveryTime: "25-35",
-    priceRange: "$$$",
-    address: "Highway Junction, Near KL University, Guntur",
-    distance: "1.5 km",
-    status: "active"
-  },
-  {
-    id: 6,
-    name: "Campus Cafe",
-    image: "https://images.unsplash.com/photo-1521017432531-fbd92d768814?q=80&w=2940&auto=format&fit=crop",
-    cuisine: "Cafe",
-    rating: 4.1,
-    deliveryTime: "10-20",
-    priceRange: "$",
-    address: "Inside KL University, Vaddeswaram, Guntur",
-    distance: "0.1 km",
-    status: "active"
-  }
-];
+// Backend API URL
+const API_URL = 'http://localhost:8080/api';
 
 function AdminDashboard() {
   const navigate = useNavigate();
-  const [restaurants, setRestaurants] = useState(mockRestaurants);
-  const [filteredRestaurants, setFilteredRestaurants] = useState(mockRestaurants);
+  const [restaurants, setRestaurants] = useState([]);
+  const [filteredRestaurants, setFilteredRestaurants] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isEditing, setIsEditing] = useState(false);
   const [currentRestaurant, setCurrentRestaurant] = useState(null);
   const [activeTab, setActiveTab] = useState('restaurants');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [showMenuManager, setShowMenuManager] = useState(false);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
   
   // Check for admin authentication
   useEffect(() => {
@@ -99,6 +33,59 @@ function AdminDashboard() {
       navigate('/login');
     }
   }, [navigate]);
+
+  // Fetch restaurants from API
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await axios.get(`${API_URL}/restaurants`);
+        // Transform data to match our component's expected format if needed
+        const formattedRestaurants = response.data.map(restaurant => ({
+          ...restaurant,
+          // Ensure all required properties exist
+          status: restaurant.isOpen ? 'active' : 'inactive',
+          deliveryTime: restaurant.deliveryTime || "30-40",
+          priceRange: getPriceRangeSymbol(restaurant.priceRange || "Moderate"),
+          distance: "1.0 km", // This might not be available from the API
+          image: restaurant.imageUrl // Maintain compatibility with existing code
+        }));
+        setRestaurants(formattedRestaurants);
+        setFilteredRestaurants(formattedRestaurants);
+      } catch (err) {
+        console.error("Error fetching restaurants:", err);
+        setError("Failed to load restaurants. Please try again later.");
+        toast.error("Failed to load restaurants. Please try again later.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRestaurants();
+  }, []);
+
+  // Helper function to convert price range to symbols
+  const getPriceRangeSymbol = (priceRange) => {
+    switch(priceRange.toLowerCase()) {
+      case 'cheap': return '$';
+      case 'moderate': return '$$';
+      case 'expensive': return '$$$';
+      case 'very expensive': return '$$$$';
+      default: return '$$';
+    }
+  };
+
+  // Convert symbol back to price range text
+  const getPriceRangeText = (symbol) => {
+    switch(symbol) {
+      case '$': return 'Cheap';
+      case '$$': return 'Moderate';
+      case '$$$': return 'Expensive';
+      case '$$$$': return 'Very Expensive';
+      default: return 'Moderate';
+    }
+  };
   
   // Apply filters and search
   useEffect(() => {
@@ -108,7 +95,8 @@ function AdminDashboard() {
     if (searchQuery) {
       filtered = filtered.filter(restaurant => 
         restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        restaurant.cuisine.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (restaurant.cuisine && Array.isArray(restaurant.cuisine) && 
+          restaurant.cuisine.some(c => c.toLowerCase().includes(searchQuery.toLowerCase()))) ||
         restaurant.address.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -120,58 +108,155 @@ function AdminDashboard() {
     
     setFilteredRestaurants(filtered);
   }, [searchQuery, statusFilter, restaurants]);
+
+  // Fetch orders data (for the Orders tab)
+  useEffect(() => {
+    if (activeTab === 'orders') {
+      const fetchOrders = async () => {
+        try {
+          const response = await axios.get(`${API_URL}/orders`);
+          setOrders(response.data);
+        } catch (err) {
+          console.error("Error fetching orders:", err);
+          toast.error("Failed to load orders. Please try again later.");
+        }
+      };
+
+      fetchOrders();
+    }
+  }, [activeTab]);
   
   const handleEditRestaurant = (restaurant) => {
     setCurrentRestaurant(restaurant);
     setIsEditing(true);
   };
   
-  const handleDeleteRestaurant = (id) => {
+  const handleDeleteRestaurant = async (id) => {
     if (window.confirm('Are you sure you want to delete this restaurant?')) {
-      const updatedRestaurants = restaurants.filter(r => r.id !== id);
-      setRestaurants(updatedRestaurants);
-      toast.success('Restaurant deleted successfully', { autoClose: 2000 });
+      try {
+        await axios.delete(`${API_URL}/restaurants/${id}`);
+        const updatedRestaurants = restaurants.filter(r => r.id !== id);
+        setRestaurants(updatedRestaurants);
+        toast.success('Restaurant deleted successfully', { autoClose: 2000 });
+      } catch (err) {
+        console.error("Error deleting restaurant:", err);
+        toast.error("Failed to delete restaurant. Please try again.");
+      }
     }
   };
   
-  const handleToggleStatus = (id) => {
-    const updatedRestaurants = restaurants.map(restaurant => {
-      if (restaurant.id === id) {
-        const newStatus = restaurant.status === 'active' ? 'inactive' : 'active';
-        toast.info(`Restaurant status changed to ${newStatus}`, { autoClose: 2000 });
-        return { ...restaurant, status: newStatus };
-      }
-      return restaurant;
-    });
-    setRestaurants(updatedRestaurants);
+  const handleToggleStatus = async (id) => {
+    try {
+      const restaurant = restaurants.find(r => r.id === id);
+      const updatedStatus = restaurant.status === 'active' ? false : true;
+      
+      // Create a clean object with only the properties that the backend expects
+      const restaurantData = {
+        id: restaurant.id,
+        name: restaurant.name,
+        cuisine: restaurant.cuisine,
+        priceRange: getPriceRangeText(restaurant.priceRange),
+        rating: restaurant.rating,
+        reviewCount: restaurant.reviewCount || 0,
+        deliveryTime: restaurant.deliveryTime,
+        imageUrl: restaurant.imageUrl || restaurant.image,
+        address: restaurant.address,
+        priceForTwo: restaurant.priceForTwo || 500,
+        isVeg: restaurant.isVeg || false,
+        isOpen: updatedStatus
+      };
+      
+      // Update the restaurant status in the backend
+      await axios.put(`${API_URL}/restaurants/${id}`, restaurantData);
+      
+      const updatedRestaurants = restaurants.map(r => {
+        if (r.id === id) {
+          const newStatus = r.status === 'active' ? 'inactive' : 'active';
+          toast.info(`Restaurant status changed to ${newStatus}`, { autoClose: 2000 });
+          return { ...r, status: newStatus, isOpen: updatedStatus };
+        }
+        return r;
+      });
+      
+      setRestaurants(updatedRestaurants);
+    } catch (err) {
+      console.error("Error updating restaurant status:", err);
+      toast.error("Failed to update restaurant status. Please try again.");
+    }
   };
   
-  const handleSaveRestaurant = (e) => {
+  const handleSaveRestaurant = async (e) => {
     e.preventDefault();
     
-    if (currentRestaurant) {
-      // Update existing restaurant
-      const updatedRestaurants = restaurants.map(r => 
-        r.id === currentRestaurant.id ? currentRestaurant : r
-      );
-      setRestaurants(updatedRestaurants);
-      toast.success('Restaurant updated successfully', { autoClose: 2000 });
-    } else {
-      // Add new restaurant
-      const newRestaurant = {
-        id: restaurants.length + 1,
-        name: e.target.name.value,
-        cuisine: e.target.cuisine.value,
-        priceRange: e.target.priceRange.value,
-        image: e.target.image.value || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=3274",
-        rating: parseFloat(e.target.rating.value) || 4.0,
-        deliveryTime: e.target.deliveryTime.value,
-        address: e.target.address.value,
-        distance: "0.5 km",
-        status: 'active'
-      };
-      setRestaurants([...restaurants, newRestaurant]);
-      toast.success('Restaurant added successfully', { autoClose: 2000 });
+    try {
+      if (currentRestaurant) {
+        // Create a clean object with only the properties that the backend expects
+        const restaurantData = {
+          id: currentRestaurant.id,
+          name: currentRestaurant.name,
+          cuisine: currentRestaurant.cuisine,
+          priceRange: getPriceRangeText(currentRestaurant.priceRange),
+          rating: currentRestaurant.rating,
+          reviewCount: currentRestaurant.reviewCount || 0,
+          deliveryTime: currentRestaurant.deliveryTime,
+          imageUrl: currentRestaurant.imageUrl || currentRestaurant.image,
+          address: currentRestaurant.address,
+          priceForTwo: currentRestaurant.priceForTwo || 500,
+          isVeg: currentRestaurant.isVeg || false,
+          isOpen: currentRestaurant.status === 'active'
+        };
+        
+        // Update existing restaurant
+        const response = await axios.put(`${API_URL}/restaurants/${currentRestaurant.id}`, restaurantData);
+        
+        // Format the response to match our component's expected structure
+        const updatedRestaurant = {
+          ...response.data,
+          status: response.data.isOpen ? 'active' : 'inactive',
+          priceRange: getPriceRangeSymbol(response.data.priceRange),
+          image: response.data.imageUrl
+        };
+        
+        const updatedRestaurants = restaurants.map(r => 
+          r.id === updatedRestaurant.id ? updatedRestaurant : r
+        );
+        setRestaurants(updatedRestaurants);
+        toast.success('Restaurant updated successfully', { autoClose: 2000 });
+      } else {
+        // Create a clean object for a new restaurant
+        const newRestaurantData = {
+          name: e.target.name.value,
+          cuisine: [e.target.cuisine.value], // API expects an array
+          priceRange: getPriceRangeText(e.target.priceRange.value),
+          rating: parseFloat(e.target.rating.value) || 4.0,
+          reviewCount: 0,
+          deliveryTime: e.target.deliveryTime.value,
+          imageUrl: e.target.image.value || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=3274",
+          address: e.target.address.value,
+          priceForTwo: 500, // Default value
+          isVeg: false, // Default value
+          isOpen: true // Default to active
+        };
+        
+        // Add new restaurant
+        const response = await axios.post(`${API_URL}/restaurants`, newRestaurantData);
+        
+        // Format the response to match our component's expected structure
+        const newRestaurant = {
+          ...response.data,
+          status: response.data.isOpen ? 'active' : 'inactive',
+          priceRange: getPriceRangeSymbol(response.data.priceRange),
+          distance: "1.0 km", // This might not be available from the API
+          image: response.data.imageUrl
+        };
+        
+        setRestaurants([...restaurants, newRestaurant]);
+        toast.success('Restaurant added successfully', { autoClose: 2000 });
+      }
+    } catch (err) {
+      console.error("Error saving restaurant:", err);
+      toast.error("Failed to save restaurant. Please try again.");
+      return; // Don't close the modal on error
     }
     
     setIsEditing(false);
@@ -182,6 +267,11 @@ function AdminDashboard() {
     localStorage.removeItem('userRole');
     toast.success('Logged out successfully', { autoClose: 2000 });
     navigate('/login');
+  };
+  
+  const handleManageMenu = (restaurantId) => {
+    setSelectedRestaurantId(restaurantId);
+    setShowMenuManager(true);
   };
   
   return (
@@ -271,8 +361,27 @@ function AdminDashboard() {
               </div>
             </div>
             
+            {/* Loading and Error states */}
+            {isLoading && (
+              <div className="bg-white p-6 rounded-lg shadow text-center">
+                <p className="text-gray-500">Loading restaurants...</p>
+              </div>
+            )}
+            
+            {error && !isLoading && (
+              <div className="bg-white p-6 rounded-lg shadow text-center">
+                <p className="text-red-500">{error}</p>
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="mt-4 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            
             {/* Restaurant List */}
-            {filteredRestaurants.length > 0 ? (
+            {!isLoading && !error && filteredRestaurants.length > 0 ? (
               <div className="bg-white rounded-lg shadow overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -291,7 +400,7 @@ function AdminDashboard() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0">
-                              <img src={restaurant.image} alt={restaurant.name} className="h-full w-full object-cover" />
+                              <img src={restaurant.imageUrl || restaurant.image} alt={restaurant.name} className="h-full w-full object-cover" />
                             </div>
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900">{restaurant.name}</div>
@@ -299,7 +408,11 @@ function AdminDashboard() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{restaurant.cuisine}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {Array.isArray(restaurant.cuisine) 
+                            ? restaurant.cuisine.join(', ') 
+                            : restaurant.cuisine}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <span className="text-sm font-medium text-gray-900">{restaurant.rating}</span>
@@ -329,6 +442,13 @@ function AdminDashboard() {
                               {restaurant.status === 'active' ? 'Deactivate' : 'Activate'}
                             </button>
                             <button 
+                              onClick={() => handleManageMenu(restaurant.id)}
+                              className="px-2 py-1 bg-orange-100 text-orange-600 rounded hover:bg-orange-200"
+                              title="Manage Menu"
+                            >
+                              <FaList />
+                            </button>
+                            <button 
                               onClick={() => handleEditRestaurant(restaurant)}
                               className="px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
                             >
@@ -347,19 +467,72 @@ function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
-            ) : (
+            ) : !isLoading && !error ? (
               <div className="bg-white p-6 rounded-lg shadow text-center">
                 <p className="text-gray-500">No restaurants found matching your filters.</p>
               </div>
-            )}
+            ) : null}
           </>
         )}
         
         {activeTab === 'orders' && (
-          <div className="bg-white p-6 rounded-lg shadow text-center">
-            <p className="text-gray-500">Order management will be implemented in the next phase.</p>
-            <p className="text-gray-400 mt-2">Coming soon with Spring Boot backend integration.</p>
-          </div>
+          <>
+            {orders.length > 0 ? (
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {orders.map((order) => (
+                      <tr key={order.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{order.id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{order.userName}</div>
+                          <div className="text-sm text-gray-500">{order.userEmail}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {typeof order.menuItem === 'object' && order.menuItem !== null
+                            ? order.menuItem.name || `Item #${order.menuItem.id}`
+                            : typeof order.menuItem === 'number'
+                              ? `Item #${order.menuItem}`
+                              : 'Unknown Item'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          ₹{order.price}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span 
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              order.status === 'Completed' ? 'bg-green-100 text-green-800' : 
+                              order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-blue-100 text-blue-800'
+                            }`}
+                          >
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(order.orderDate).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="bg-white p-6 rounded-lg shadow text-center">
+                <p className="text-gray-500">No orders found.</p>
+              </div>
+            )}
+          </>
         )}
       </div>
       
@@ -402,8 +575,13 @@ function AdminDashboard() {
                       name="cuisine"
                       required
                       className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                      defaultValue={currentRestaurant?.cuisine || ''}
-                      onChange={(e) => currentRestaurant && setCurrentRestaurant({...currentRestaurant, cuisine: e.target.value})}
+                      defaultValue={currentRestaurant?.cuisine && Array.isArray(currentRestaurant.cuisine) 
+                        ? currentRestaurant.cuisine[0] 
+                        : currentRestaurant?.cuisine || ''}
+                      onChange={(e) => currentRestaurant && setCurrentRestaurant({
+                        ...currentRestaurant, 
+                        cuisine: [e.target.value]
+                      })}
                     />
                   </div>
                   <div>
@@ -452,8 +630,12 @@ function AdminDashboard() {
                       type="text"
                       name="image"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                      defaultValue={currentRestaurant?.image || ''}
-                      onChange={(e) => currentRestaurant && setCurrentRestaurant({...currentRestaurant, image: e.target.value})}
+                      defaultValue={currentRestaurant?.imageUrl || currentRestaurant?.image || ''}
+                      onChange={(e) => currentRestaurant && setCurrentRestaurant({
+                        ...currentRestaurant, 
+                        imageUrl: e.target.value,
+                        image: e.target.value
+                      })}
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -488,6 +670,17 @@ function AdminDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Menu Item Management Modal */}
+      {showMenuManager && selectedRestaurantId && (
+        <MenuItemManagement
+          restaurantId={selectedRestaurantId}
+          onClose={() => {
+            setShowMenuManager(false);
+            setSelectedRestaurantId(null);
+          }}
+        />
       )}
     </div>
   );

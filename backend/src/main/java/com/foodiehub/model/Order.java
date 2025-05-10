@@ -1,10 +1,14 @@
 package com.foodiehub.model;
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIdentityReference;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "orders")
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -12,6 +16,7 @@ public class Order {
 
     @ManyToOne
     @JoinColumn(name = "menu_item_id", nullable = false)
+    @JsonIdentityReference(alwaysAsId = true)
     private MenuItem menuItem;
 
     @Column(name = "user_name", nullable = false)

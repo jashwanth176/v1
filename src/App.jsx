@@ -12,11 +12,14 @@ import 'leaflet/dist/leaflet.css';
 import MFASetup from './components/MFASetup';
 import OTPVerification from './components/OTPVerification';
 import UserDashboard from './components/UserDashboard';
+import RestaurantDetails from './components/RestaurantDetails';
+import Cart from './components/Cart';
+import Checkout from './components/Checkout';
+import OrderConfirmation from './components/OrderConfirmation';
+import axios from 'axios';
 
-
-
-
-const SiteHeader = () => {
+// Export SiteHeader so it can be imported in other components
+export const SiteHeader = () => {
   const handleLogout = () => {
     localStorage.removeItem('userName');
     localStorage.removeItem('userRole');
@@ -481,7 +484,7 @@ const HeroSection = () => {
     };
   }, []);
   
-  // Search for nearby places using OpenStreetMap Overpass API
+  // Search for nearby places using restaurant API instead of OpenStreetMap
   React.useEffect(() => {
     if (showingNearbyOptions) {
       searchNearbyRestaurants();
@@ -491,51 +494,51 @@ const HeroSection = () => {
   const searchNearbyRestaurants = () => {
     setIsLoadingPlaces(true);
     
-    // Using OpenStreetMap's Overpass API to search for restaurants
-    // This is a simplified version; for production, you might want to use a more sophisticated approach
-    const searchTerm = searchQuery || 'restaurant near KL University';
-    const radius = 5000; // 5km radius around KL University
+    // Using our backend API to get restaurants instead of OpenStreetMap
+    const API_URL = 'http://localhost:8080/api';
     
-    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchTerm)}&format=json&limit=5&addressdetails=1&lat=16.4419&lon=80.6226&radius=${radius}`)
-      .then(response => response.json())
-      .then(data => {
-        if (data && data.length > 0) {
-          // Format results to match our restaurant structure
-          const formattedResults = data.map(place => ({
-            name: place.name || place.display_name.split(',')[0],
-            address: place.display_name,
+    axios.get(`${API_URL}/restaurants`)
+      .then(response => {
+        if (response.data && response.data.length > 0) {
+          // Format results to match our structure
+          const formattedResults = response.data.map(restaurant => ({
+            id: restaurant.id,
+            name: restaurant.name,
+            address: restaurant.address || "Address not available",
             distance: calculateDistance(
               savedLat,
               savedLng,
-              parseFloat(place.lat),
-              parseFloat(place.lon)
+              restaurant.lat || savedLat + (Math.random() - 0.5) * 0.05,
+              restaurant.lng || savedLng + (Math.random() - 0.5) * 0.05,
             ),
-            eta: generateETA(parseFloat(place.lat), parseFloat(place.lon)),
-            id: place.place_id
+            eta: restaurant.deliveryTime || generateETA(
+              restaurant.lat || savedLat + (Math.random() - 0.5) * 0.05, 
+              restaurant.lng || savedLng + (Math.random() - 0.5) * 0.05
+            )
           }));
           
-          setNearbyRestaurants(formattedResults);
+          // Filter by search query if provided
+          let filtered = formattedResults;
+          if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            filtered = formattedResults.filter(restaurant => 
+              restaurant.name.toLowerCase().includes(query) ||
+              restaurant.address.toLowerCase().includes(query)
+            );
+          }
+          
+          setNearbyRestaurants(filtered);
         } else {
-          // Fallback to mock data if API returns no results
-          setNearbyRestaurants([
-            { name: "Campus Cafeteria", address: "KL University, Guntur", distance: "0.1 mi", eta: "5-10 min" },
-            { name: "Green Valley Restaurant", address: "Near KL University", distance: "0.6 mi", eta: "15-20 min" },
-            { name: "Spicy Bites", address: "Vaddeswaram, Guntur", distance: "1.2 mi", eta: "20-25 min" },
-            { name: "Food Court", address: "Mangalagiri Road, Guntur", distance: "2.5 mi", eta: "30-40 min" }
-          ]);
+          setNearbyRestaurants([]);
+          toast.info("No restaurants found in your area.");
         }
         
         setIsLoadingPlaces(false);
       })
       .catch(error => {
-        console.error("Error fetching places:", error);
-        // Fallback to mock data on error
-        setNearbyRestaurants([
-          { name: "Campus Cafeteria", address: "KL University, Guntur", distance: "0.1 mi", eta: "5-10 min" },
-          { name: "Green Valley Restaurant", address: "Near KL University", distance: "0.6 mi", eta: "15-20 min" },
-          { name: "Spicy Bites", address: "Vaddeswaram, Guntur", distance: "1.2 mi", eta: "20-25 min" },
-          { name: "Food Court", address: "Mangalagiri Road, Guntur", distance: "2.5 mi", eta: "30-40 min" }
-        ]);
+        console.error("Error fetching restaurants:", error);
+        setNearbyRestaurants([]);
+        toast.error("Failed to load restaurants. Please try again later.");
         setIsLoadingPlaces(false);
       });
   };
@@ -632,7 +635,7 @@ const HeroSection = () => {
   // Select current options based on the selected type
   const currentOptions = deliveryOptions[deliveryType];
 
-  // Modified restaurant handling to check for login
+  // Modified restaurant handling to navigate to restaurant details page
   const handleRestaurantSelect = (restaurant) => {
     if (!userName) {
       // Redirect to login if not logged in
@@ -642,7 +645,8 @@ const HeroSection = () => {
       });
       navigate('/login');
     } else {
-      navigate('/restaurants');
+      // Navigate to specific restaurant page instead of general restaurants list
+      navigate(`/restaurants/${restaurant.id}`);
       toast.info(`Selected ${restaurant.name}`, {
         position: "top-right",
         autoClose: 2000
@@ -801,9 +805,9 @@ const HeroSection = () => {
                   ) : nearbyRestaurants.length === 0 ? (
                     <div className="py-4 text-center text-gray-500">No restaurants found nearby</div>
                   ) : (
-                    nearbyRestaurants.map((restaurant, index) => (
+                    nearbyRestaurants.map((restaurant) => (
                       <div 
-                        key={index}
+                        key={restaurant.id}
                         className="location-card flex items-center justify-between p-2 hover:bg-orange-50 rounded-lg cursor-pointer transition-colors"
                         onClick={() => handleRestaurantSelect(restaurant)}
                       >
@@ -816,9 +820,11 @@ const HeroSection = () => {
                             <p className="text-xs text-gray-500">{restaurant.address} • {restaurant.distance}</p>
                           </div>
                         </div>
+                        <div className="flex flex-col items-end">
                         <div className="flex items-center text-sm text-gray-700">
                           <Clock className="h-4 w-4 mr-1 text-orange-500" />
                           {restaurant.eta}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -1117,158 +1123,64 @@ const RestaurantsPage = () => {
     return `${minTime}-${maxTime} min`;
   };
 
-  // Mock restaurant data that would normally come from an API
-  const mockRestaurants = [
-    {
-      id: 1,
-      name: "KL Food Court",
-      cuisine: ["Indian", "South Indian", "Fast Food"],
-      address: "KL University Campus, Vaddeswaram",
-      distance: "0.1",
-      rating: 4.2,
-      reviewCount: 320,
-      priceForTwo: 150,
-      timeEstimate: "15-20",
-      image: "https://b.zmtcdn.com/data/pictures/chains/8/900508/0696d6e983cd0116889760534dfe4882.jpg",
-      veg: true,
-      openNow: true,
-      offers: ["10% off on all orders", "Free delivery on campus"]
-    },
-    {
-      id: 2,
-      name: "Bawarchi Biryani",
-      cuisine: ["Biryani", "Indian", "North Indian"],
-      address: "Mangalagiri Road, 2.5 km from KL University",
-      distance: "2.5",
-      rating: 4.5,
-      reviewCount: 1430,
-      priceForTwo: 400,
-      timeEstimate: "30-40",
-      image: "https://b.zmtcdn.com/data/pictures/chains/1/91781/a44129196d5468d244b1c1f8969d8e51.jpg",
-      veg: false,
-      openNow: true,
-      offers: ["20% off on orders above ₹500"]
-    },
-    {
-      id: 3,
-      name: "Spicy Paradise",
-      cuisine: ["Andhra", "Biryani", "South Indian"],
-      address: "Vaddeswaram, 1.8 km from KL University",
-      distance: "1.8",
-      rating: 4.0,
-      reviewCount: 768,
-      priceForTwo: 300,
-      timeEstimate: "25-35",
-      image: "https://b.zmtcdn.com/data/pictures/chains/9/90129/f9f1e95f255077b8686910ebb46e05cd.jpg",
-      veg: false,
-      openNow: true,
-      offers: []
-    },
-    {
-      id: 4,
-      name: "Green Leaf Veg Restaurant",
-      cuisine: ["Vegetarian", "South Indian", "North Indian"],
-      address: "Mangalagiri, 3.2 km from KL University",
-      distance: "3.2",
-      rating: 4.3,
-      reviewCount: 632,
-      priceForTwo: 250,
-      timeEstimate: "35-45",
-      image: "https://b.zmtcdn.com/data/pictures/0/19665560/a6c8129329bf976270f0df240aa1b3b3.jpg",
-      veg: true,
-      openNow: true,
-      offers: ["15% off on dine-in", "Free dessert on orders above ₹500"]
-    },
-    {
-      id: 5,
-      name: "Pizza Hub",
-      cuisine: ["Pizza", "Fast Food", "Italian"],
-      address: "Vaddeswaram, 1.5 km from KL University",
-      distance: "1.5",
-      rating: 3.9,
-      reviewCount: 450,
-      priceForTwo: 350,
-      timeEstimate: "30-40",
-      image: "https://b.zmtcdn.com/data/pictures/chains/6/10506/bd8dfea96f558f70726e9adeea69ad59.jpg",
-      veg: false,
-      openNow: true,
-      offers: ["Buy 1 Get 1 on Medium Pizzas"]
-    },
-    {
-      id: 6,
-      name: "Krishna Grand",
-      cuisine: ["Biryani", "North Indian", "Chinese"],
-      address: "Guntur Highway, 4.1 km from KL University",
-      distance: "4.1",
-      rating: 4.4,
-      reviewCount: 1210,
-      priceForTwo: 450,
-      timeEstimate: "40-50",
-      image: "https://b.zmtcdn.com/data/pictures/chains/3/93043/fa48a84c14ed2f2177fa14af7b18df3f.jpg",
-      veg: false,
-      openNow: true,
-      offers: ["10% cashback using wallet"]
-    },
-    {
-      id: 7,
-      name: "Cafe Coffee Day",
-      cuisine: ["Beverages", "Desserts", "Continental"],
-      address: "Vaddeswaram Main Road, 1.2 km from KL University",
-      distance: "1.2",
-      rating: 4.1,
-      reviewCount: 520,
-      priceForTwo: 400,
-      timeEstimate: "20-30",
-      image: "https://b.zmtcdn.com/data/pictures/chains/2/50812/7c1693cabaecac046b1479b09932c3a5.jpg",
-      veg: true,
-      openNow: true,
-      offers: ["1+1 on coffees weekdays 2-6pm"]
-    },
-    {
-      id: 8,
-      name: "Guntur Spice",
-      cuisine: ["Andhra", "Biryani"],
-      address: "Guntur Road, 5 km from KL University",
-      distance: "5.0",
-      rating: 4.6,
-      reviewCount: 890,
-      priceForTwo: 500,
-      timeEstimate: "45-55",
-      image: "https://b.zmtcdn.com/data/pictures/5/19602775/78ad725e8e576a89d8e1d11992797805.jpg",
-      veg: false,
-      openNow: false,
-      offers: ["20% off on weekends"]
-    }
-  ];
-
-  // Fetch restaurants from OpenStreetMap or use mock data
+  // Fetch restaurants from API instead of using mock data
   useEffect(() => {
-    // In a real app, we would fetch from an API
-    // For now, we'll use our mock data and simulate a loading delay
+    const fetchRestaurants = async () => {
     setLoading(true);
+      const API_URL = 'http://localhost:8080/api';
 
-    // Simulated API call
-    setTimeout(() => {
-      // Apply distance calculation to mock data using user's location
-      const restaurantsWithDistance = mockRestaurants.map(restaurant => {
-        // For demonstration, we're using a simple randomization for lat/lng offsets
-        const lat = savedLat + (Math.random() - 0.5) * 0.1;
-        const lng = savedLng + (Math.random() - 0.5) * 0.1;
-        const distance = parseFloat(calculateDistance(savedLat, savedLng, lat, lng));
+      try {
+        const response = await axios.get(`${API_URL}/restaurants`);
         
-        return {
-          ...restaurant,
-          lat,
-          lng,
-          distance: distance.toFixed(1),
-          timeEstimate: generateETA(lat, lng)
+        // Transform API response to match our component's expected format
+        const transformedRestaurants = response.data.map(restaurant => {
+          // Generate random lat/lng offsets for distance calculation if they don't exist
+          const lat = restaurant.lat || savedLat + (Math.random() - 0.5) * 0.05;
+          const lng = restaurant.lng || savedLng + (Math.random() - 0.5) * 0.05;
+          const distance = parseFloat(calculateDistance(savedLat, savedLng, lat, lng));
+          
+          // Properly handle cuisine - could be array, comma-separated string, or single string
+          let cuisineArray;
+          if (Array.isArray(restaurant.cuisine)) {
+            cuisineArray = restaurant.cuisine;
+          } else if (typeof restaurant.cuisine === 'string' && restaurant.cuisine.includes(',')) {
+            // Split the comma-separated string and trim whitespace from each item
+            cuisineArray = restaurant.cuisine.split(',').map(item => item.trim());
+          } else {
+            cuisineArray = [restaurant.cuisine || 'Various'];
+          }
+        
+          return {
+            id: restaurant.id,
+            name: restaurant.name,
+            cuisine: cuisineArray,
+            address: restaurant.address || 'Address unavailable',
+            distance: distance.toFixed(1),
+            rating: restaurant.rating || 4.0,
+            reviewCount: restaurant.reviewCount || Math.floor(Math.random() * 500) + 50,
+            priceForTwo: restaurant.priceForTwo || 250,
+            timeEstimate: restaurant.deliveryTime || generateETA(lat, lng),
+            image: restaurant.imageUrl || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=3274",
+            veg: restaurant.isVeg || false,
+            openNow: restaurant.isOpen !== undefined ? restaurant.isOpen : true,
+            lat,
+            lng
         };
       });
       
-      setRestaurants(restaurantsWithDistance);
+        setRestaurants(transformedRestaurants);
+      } catch (error) {
+        console.error("Error fetching restaurants:", error);
+        toast.error("Failed to load restaurants. Please try again later.");
+      } finally {
       setLoading(false);
-    }, 1000);
-  }, [savedLat, savedLng]);
+      }
+    };
+
+    if (userName) {
+      fetchRestaurants();
+    }
+  }, [savedLat, savedLng, userName, navigate]);
 
   // Filter restaurants based on search query and selected filters
   const filteredRestaurants = restaurants.filter(restaurant => {
@@ -1544,19 +1456,21 @@ const RestaurantsPage = () => {
             </div>
             
             <div className="grid grid-cols-1 gap-4">
-              {filteredRestaurants.map(restaurant => (
+              {filteredRestaurants.map((restaurant) => (
                 <div 
                   key={restaurant.id} 
                   className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow active:bg-gray-50"
                 >
                   <div className="flex flex-col md:flex-row">
                     {/* Restaurant Image */}
-                    <div className="relative md:w-1/3 h-48 md:h-auto">
-                      <img 
-                        src={restaurant.image} 
-                        alt={restaurant.name}
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="relative md:w-1/3 h-48 md:h-auto overflow-hidden">
+                      <div className="w-full h-full" style={{ aspectRatio: "4/3" }}>
+                        <img 
+                          src={restaurant.image} 
+                          alt={restaurant.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                       <button className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full hover:bg-white transition-colors">
                         <Heart className="h-5 w-5 text-gray-500 hover:text-pink-500" />
                       </button>
@@ -1584,6 +1498,7 @@ const RestaurantsPage = () => {
                         <div className="text-right">
                           <div className="text-sm">
                             <span className="font-medium text-gray-900">₹{restaurant.priceForTwo}</span> <span className="text-gray-500">for two</span>
+                            <span className="text-gray-500 mx-1">•</span> <span className="text-gray-500">avg ₹{Math.round(restaurant.priceForTwo / 2)}/person</span>
                           </div>
                           <div className="flex items-center justify-end text-sm text-gray-500 mt-1">
                             <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
@@ -1613,6 +1528,11 @@ const RestaurantsPage = () => {
                             Open Now
                           </span>
                         )}
+                        {restaurant.offers && restaurant.offers.length > 0 && (
+                          <span className="bg-orange-50 text-orange-700 px-2 py-0.5 text-xs rounded-full border border-orange-100">
+                            {restaurant.offers[0]}
+                          </span>
+                        )}
                       </div>
                       
                       {/* Action Buttons with active states for touch */}
@@ -1622,14 +1542,20 @@ const RestaurantsPage = () => {
                             <Phone className="h-4 w-4 mr-1" />
                             <span className="hidden sm:inline">Call</span>
                           </a>
-                          <a href="#" target="_blank" className="text-gray-600 flex items-center text-sm hover:text-orange-500 active:scale-95 transition-transform">
+                          <Link 
+                            to={`/restaurants/${restaurant.id}`} 
+                            className="text-gray-600 flex items-center text-sm hover:text-orange-500 active:scale-95 transition-transform"
+                          >
                             <ExternalLink className="h-4 w-4 mr-1" />
                             <span className="hidden sm:inline">Menu</span>
-                          </a>
+                          </Link>
                         </div>
-                        <button className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-4 py-1.5 rounded-full text-sm active:scale-95 transition-transform">
+                        <Link 
+                          to={`/restaurants/${restaurant.id}`} 
+                          className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-4 py-1.5 rounded-full text-sm active:scale-95 transition-transform"
+                        >
                           Order Now
-                        </button>
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -1653,6 +1579,10 @@ function App() {
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/map" element={<MapSelector />} />
           <Route path="/restaurants" element={<RestaurantsPage />} />
+          <Route path="/restaurants/:id" element={<RestaurantDetails />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/order-confirmation" element={<OrderConfirmation />} />
           <Route path="/offers" element={<OffersPage />} />
           <Route path="/setup-mfa" element={<MFASetup />} />
           <Route path="/verify-otp" element={<OTPVerification />} />

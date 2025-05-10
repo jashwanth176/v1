@@ -40,6 +40,7 @@ function LoginPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [adminUsername, setAdminUsername] = useState('');
   const navigate = useNavigate();
 
   const handleGoogleLogin = async () => {
@@ -73,7 +74,7 @@ function LoginPage() {
   };
 
   const validatePassword = () => {
-    if (password.length < 6) {
+    if (password.length < 6 && !isAdmin) {
       setPasswordError('Password must be at least 6 characters long');
       return false;
     }
@@ -85,8 +86,45 @@ function LoginPage() {
     return true;
   };
 
+  const handleAdminLogin = (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    // Simple admin authentication with hardcoded credentials
+    if (adminUsername.trim() && password === "admin123") {
+      // Set admin role in localStorage
+      localStorage.setItem("userName", "Administrator");
+      localStorage.setItem("userEmail", adminUsername);
+      localStorage.setItem("userRole", "admin");
+      
+      toast.success("Admin login successful!", {
+        position: "top-right",
+        autoClose: 2000,
+      });
+      
+      setTimeout(() => {
+        navigate("/admin-dashboard");
+      }, 1000);
+    } else {
+      toast.error("Invalid admin credentials", {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    }
+    
+    setIsLoading(false);
+  };
+
   const handleEmailAuth = async (e) => {
     e.preventDefault();
+    
+    // If in admin mode, use simple admin login
+    if (isAdmin) {
+      handleAdminLogin(e);
+      return;
+    }
+    
+    // Regular user authentication
     if (!email || !password) {
       toast.error('Please enter both email and password');
       return;
@@ -183,8 +221,9 @@ function LoginPage() {
   const toggleAdminMode = () => {
     setIsAdmin(!isAdmin);
     setIsSignUp(false);
-    setEmail(isAdmin ? '' : 'admin@foodiehub.com');
+    setEmail('');
     setPassword('');
+    setAdminUsername('');
     setPasswordError('');
   };
 
@@ -217,11 +256,11 @@ function LoginPage() {
           )}
           <div>
             <input
-              type="email"
-              placeholder="Email address"
+              type={isAdmin ? "text" : "email"}
+              placeholder={isAdmin ? "Admin username" : "Email address"}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={isAdmin ? adminUsername : email}
+              onChange={(e) => isAdmin ? setAdminUsername(e.target.value) : setEmail(e.target.value)}
               required
             />
           </div>
@@ -286,6 +325,13 @@ function LoginPage() {
           >
             {isLoading ? 'Processing...' : (isAdmin ? 'Admin Login' : (isSignUp ? 'Sign Up' : 'Sign In'))}
           </button>
+          
+          {isAdmin && (
+            <div className="text-xs text-gray-500 text-center mt-2">
+              <p>Username: <span className="font-medium">admin</span> (or any username)</p>
+              <p>Password: <span className="font-medium">&ldquo;admin123&rdquo;</span></p>
+            </div>
+          )}
         </form>
 
         {!isAdmin && (

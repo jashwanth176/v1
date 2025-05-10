@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "axios": "^1.9.0",
     "canvas-confetti": "^1.9.3",
     "chart.js": "^4.4.9",
     "firebase": "^11.7.1",
