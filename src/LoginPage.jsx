@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { Link, useNavigate } from 'react-router-dom';
 import { initializeApp } from 'firebase/app';
@@ -14,7 +14,8 @@ import {
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FaShield } from 'react-icons/fa6';
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
+import { loadCaptchaEnginge, LoadCanvasTemplate, validateCaptcha } from 'react-simple-captcha';
 
 const firebaseConfig = {
     apiKey: "AIzaSyAeCeaEhnXG_OYNenxf3obf3aHsckyo7v8",
@@ -41,7 +42,23 @@ function LoginPage() {
   const [passwordError, setPasswordError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [adminUsername, setAdminUsername] = useState('');
+  const [userCaptcha, setUserCaptcha] = useState('');
+  const [captchaError, setCaptchaError] = useState('');
   const navigate = useNavigate();
+
+  // Initialize CAPTCHA when admin mode is activated
+  useEffect(() => {
+    if (isAdmin) {
+      loadCaptchaEnginge(6);
+    }
+  }, [isAdmin]);
+
+  // Refresh CAPTCHA function
+  const refreshCaptcha = () => {
+    loadCaptchaEnginge(6);
+    setUserCaptcha('');
+    setCaptchaError('');
+  };
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -89,6 +106,13 @@ function LoginPage() {
   const handleAdminLogin = (e) => {
     e.preventDefault();
     setIsLoading(true);
+    
+    // Validate CAPTCHA first
+    if (!validateCaptcha(userCaptcha)) {
+      setCaptchaError('CAPTCHA validation failed. Please try again.');
+      setIsLoading(false);
+      return;
+    }
     
     // Simple admin authentication with hardcoded credentials
     if (adminUsername.trim() && password === "admin123") {
@@ -218,6 +242,8 @@ function LoginPage() {
     setConfirmPassword('');
     setName('');
     setPasswordError('');
+    setUserCaptcha('');
+    setCaptchaError('');
   };
   
   const toggleAdminMode = () => {
@@ -227,6 +253,13 @@ function LoginPage() {
     setPassword('');
     setAdminUsername('');
     setPasswordError('');
+    setUserCaptcha('');
+    setCaptchaError('');
+    
+    // Initialize CAPTCHA if admin mode
+    if (!isAdmin) {
+      setTimeout(() => loadCaptchaEnginge(6), 100);
+    }
   };
 
   return (
@@ -306,6 +339,42 @@ function LoginPage() {
               />
             </div>
           )}
+
+          {/* CAPTCHA for admin login */}
+          {isAdmin && (
+            <div className="space-y-3">
+              <div className="bg-gray-100 rounded-lg p-3 flex flex-col items-center">
+                <p className="text-sm text-gray-600 mb-2">Please verify you&apos;re human</p>
+                <div className="border border-gray-300 rounded-md overflow-hidden">
+                  <LoadCanvasTemplate reloadText="Reload" />
+                </div>
+                <button 
+                  type="button" 
+                  onClick={refreshCaptcha}
+                  className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center mt-2"
+                >
+                  <RefreshCw size={14} className="mr-1" /> Refresh CAPTCHA
+                </button>
+              </div>
+              <div>
+                <input
+                  type="text"
+                  placeholder="Enter CAPTCHA text"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  value={userCaptcha}
+                  onChange={(e) => {
+                    setUserCaptcha(e.target.value);
+                    setCaptchaError('');
+                  }}
+                  required
+                />
+                {captchaError && (
+                  <p className="text-red-500 text-sm mt-1">{captchaError}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {passwordError && (
             <p className="text-red-500 text-sm mt-1">{passwordError}</p>
           )}

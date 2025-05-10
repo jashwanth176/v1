@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CreditCard, Smartphone, Wallet, CheckCircle, ChevronRight } from 'lucide-react';
+import { ArrowLeft, CreditCard, Smartphone, Wallet, CheckCircle, ChevronRight, Tag, AlertCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 
@@ -14,6 +14,7 @@ const Checkout = () => {
     subtotal: 0,
     deliveryFee: 0,
     tax: 0,
+    discount: 0,
     total: 0
   });
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -23,6 +24,7 @@ const Checkout = () => {
     phone: '',
     address: ''
   });
+  const [activeCoupon, setActiveCoupon] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
   useEffect(() => {
@@ -56,7 +58,69 @@ const Checkout = () => {
       phone: '9876543210',
       address: localStorage.getItem('selectedAddress') || 'KL University, Guntur, Andhra Pradesh, India'
     });
+    
+    // Load and apply coupon if present
+    loadCoupon();
   }, [navigate]);
+  
+  const loadCoupon = () => {
+    const couponCode = localStorage.getItem('activeCoupon');
+    if (!couponCode) return;
+    
+    const couponDetails = JSON.parse(localStorage.getItem('couponDiscount') || '{}');
+    if (!couponDetails) return;
+    
+    setActiveCoupon(couponDetails);
+    
+    // Apply discount based on coupon details
+    const subtotal = cartTotals.subtotal || 0;
+    let discountAmount = 0;
+    
+    if (couponCode === 'WELCOME50' && couponDetails.percentOff) {
+      // Welcome offer - 50% off up to ₹150
+      discountAmount = (subtotal * couponDetails.percentOff) / 100;
+      const maxDiscount = parseInt(couponDetails.maxDiscount, 10) || 150;
+      if (discountAmount > maxDiscount) discountAmount = maxDiscount;
+    } else if (couponDetails.percentOff) {
+      // Percentage based discount
+      discountAmount = (subtotal * couponDetails.percentOff) / 100;
+      const maxDiscount = parseInt(couponDetails.maxDiscount, 10) || 0;
+      if (maxDiscount > 0 && discountAmount > maxDiscount) discountAmount = maxDiscount;
+    } else if (couponCode === 'FREEDEL') {
+      // Free delivery coupon
+      discountAmount = cartTotals.deliveryFee || 0;
+    }
+    
+    // Update totals with discount
+    const updatedTotals = {
+      ...cartTotals,
+      discount: discountAmount,
+      total: cartTotals.subtotal + cartTotals.deliveryFee + cartTotals.tax - discountAmount
+    };
+    
+    setCartTotals(updatedTotals);
+    localStorage.setItem('cartTotals', JSON.stringify(updatedTotals));
+  };
+  
+  const removeCoupon = () => {
+    localStorage.removeItem('activeCoupon');
+    localStorage.removeItem('couponDiscount');
+    setActiveCoupon(null);
+    
+    // Reset totals without discount
+    const updatedTotals = {
+      ...cartTotals,
+      discount: 0,
+      total: cartTotals.subtotal + cartTotals.deliveryFee + cartTotals.tax
+    };
+    
+    setCartTotals(updatedTotals);
+    localStorage.setItem('cartTotals', JSON.stringify(updatedTotals));
+    
+    toast.info('Coupon removed', {
+      position: "top-right"
+    });
+  };
   
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -100,9 +164,11 @@ const Checkout = () => {
       
       await Promise.all(orderPromises);
       
-      // Clear cart and totals
+      // Clear cart, totals, and coupon
       localStorage.removeItem('cart');
       localStorage.removeItem('cartTotals');
+      localStorage.removeItem('activeCoupon');
+      localStorage.removeItem('couponDiscount');
       
       // Save order summary for confirmation page
       localStorage.setItem('orderSummary', JSON.stringify({
@@ -110,7 +176,8 @@ const Checkout = () => {
         totals: cartTotals,
         paymentMethod,
         userDetails,
-        orderDate: new Date().toISOString()
+        orderDate: new Date().toISOString(),
+        couponApplied: activeCoupon ? activeCoupon.code : null
       }));
       
       // Navigate to confirmation page
@@ -354,6 +421,27 @@ const Checkout = () => {
                     ))}
                   </div>
                   
+                  {/* Show active coupon */}
+                  {activeCoupon && (
+                    <div className="mb-4 p-3 bg-orange-50 border border-orange-100 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <Tag className="text-orange-500 mr-2" size={16} />
+                          <div>
+                            <p className="font-medium text-sm">{activeCoupon.code} applied</p>
+                            <p className="text-xs text-gray-600">{activeCoupon.discountText}</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={removeCoupon}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <AlertCircle size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="space-y-2 border-t border-gray-100 pt-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Subtotal</span>
@@ -367,11 +455,33 @@ const Checkout = () => {
                       <span className="text-gray-500">Taxes</span>
                       <span>₹{cartTotals.tax.toFixed(2)}</span>
                     </div>
+                    
+                    {/* Show discount amount if coupon applied */}
+                    {cartTotals.discount > 0 && (
+                      <div className="flex justify-between text-sm text-green-600">
+                        <span>Discount</span>
+                        <span>-₹{cartTotals.discount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    
                     <div className="flex justify-between font-bold pt-2 border-t border-gray-100">
                       <span>Total</span>
                       <span>₹{cartTotals.total.toFixed(2)}</span>
                     </div>
                   </div>
+                  
+                  {/* Coupon prompt if no coupon applied */}
+                  {!activeCoupon && (
+                    <div className="mt-3 mb-3">
+                      <button 
+                        onClick={() => navigate('/offers')}
+                        className="w-full flex items-center justify-center py-2 border border-dashed border-orange-300 rounded-lg text-orange-500 hover:bg-orange-50 transition-colors"
+                      >
+                        <Tag size={16} className="mr-2" />
+                        Apply Coupon
+                      </button>
+                    </div>
+                  )}
                   
                   <button 
                     onClick={placeOrder}

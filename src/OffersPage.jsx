@@ -4,6 +4,10 @@ import { toast } from 'react-toastify';
 import { Clock, Tag, Copy, Scissors, CheckCircle, Gift, Percent, Award, TrendingUp, Zap, X, ChevronLeft, MapPin } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+// API URL
+const API_URL = 'http://localhost:8080/api';
 
 // Mock offers data
 const offersList = [
@@ -114,10 +118,19 @@ const removeCoupon = (couponCode) => {
   const savedCoupons = JSON.parse(localStorage.getItem('savedCoupons') || '[]');
   const updatedCoupons = savedCoupons.filter(code => code !== couponCode);
   localStorage.setItem('savedCoupons', JSON.stringify(updatedCoupons));
+  
+  // If removing the active coupon, clear it
+  if (localStorage.getItem('activeCoupon') === couponCode) {
+    localStorage.removeItem('activeCoupon');
+    localStorage.removeItem('couponDiscount');
+  }
 };
 
-const applyCoupon = (couponCode) => {
+const applyCoupon = (couponCode, discountDetails) => {
   localStorage.setItem('activeCoupon', couponCode);
+  
+  // Save discount information
+  localStorage.setItem('couponDiscount', JSON.stringify(discountDetails));
 };
 
 // Main OffersPage component
@@ -223,10 +236,59 @@ const OffersPage = () => {
     }
   };
 
+  // Check if this is the user's first order
+  const checkFirstTimeUser = async () => {
+    try {
+      // Get the userName from localStorage
+      const userName = localStorage.getItem('userName');
+      if (!userName) {
+        return false; // Can't determine if first time if no user is logged in
+      }
+      
+      // Call API to check if user has previous orders
+      const response = await axios.get(`${API_URL}/orders/user/${userName}`);
+      
+      // If user has no orders, they're eligible for the welcome offer
+      return response.data.length === 0;
+    } catch (error) {
+      console.error('Error checking first-time user status:', error);
+      return false; // If there's an error, default to not eligible
+    }
+  };
+
   // Handle apply coupon
-  const handleApplyCoupon = (couponCode) => {
-    applyCoupon(couponCode);
+  const handleApplyCoupon = async (couponCode) => {
+    // Find the offer details
+    const offer = offersList.find(o => o.id === couponCode);
+    
+    // Check if it's the welcome offer and not the first order
+    if (couponCode === 'WELCOME50') {
+      const isFirstTimeUser = await checkFirstTimeUser();
+      if (!isFirstTimeUser) {
+        toast.error("Welcome offer can only be applied on your first order", {
+          position: "top-right"
+        });
+        return;
+      }
+    }
+    
+    // Calculate discount information
+    const discountInfo = {
+      code: couponCode,
+      type: offer.type,
+      discountText: offer.discount,
+      maxDiscount: offer.maxDiscount.replace('Up to ₹', '').replace('Save ₹', '')
+    };
+    
+    // If it's a percentage discount, extract the percentage value
+    if (offer.discount.includes('%')) {
+      discountInfo.percentOff = parseInt(offer.discount.replace('% OFF', ''), 10);
+    }
+    
+    // Apply the coupon
+    applyCoupon(couponCode, discountInfo);
     setActiveCoupon(couponCode);
+    
     toast.success(`Coupon ${couponCode} applied! Discount will be applied at checkout.`, {
       position: "top-right"
     });

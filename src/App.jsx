@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { Search, User, MapPin, Truck, Store, ArrowRight, Star, Utensils, Coffee, Pizza, Salad, IceCream, Beef, Navigation, MapIcon, X, CheckCircle2, Clock, Home, Plus, Minus, ChevronLeft, Heart, Filter, Phone, ExternalLink, Tag } from 'lucide-react';
+import { Search, User, MapPin, Truck, Store, ArrowRight, Star, Utensils, Coffee, Pizza, Salad, IceCream, Beef, Navigation, MapIcon, X, CheckCircle2, Clock, Home, Plus, Minus, Heart, Filter, Phone, ExternalLink } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import LoginPage from './LoginPage';
@@ -16,6 +16,7 @@ import RestaurantDetails from './components/RestaurantDetails';
 import Cart from './components/Cart';
 import Checkout from './components/Checkout';
 import OrderConfirmation from './components/OrderConfirmation';
+import ChatbotPopup from './components/ChatbotPopup';
 import axios from 'axios';
 
 // Export SiteHeader so it can be imported in other components
@@ -52,7 +53,7 @@ export const SiteHeader = () => {
           <Link to="/" className="text-gray-800 hover:text-orange-600 transition-colors">Home</Link>
           <Link to="/restaurants" className="text-gray-800 hover:text-orange-600 transition-colors">Restaurants</Link>
           <Link to="/offers" className="text-gray-800 hover:text-orange-600 transition-colors">Offers</Link>
-          <Link to="#" className="text-gray-800 hover:text-orange-600 transition-colors">Categories</Link>
+          <Link to="/restaurants" className="text-gray-800 hover:text-orange-600 transition-colors">Explore Cuisines</Link>
         </nav>
 
         <div className="flex items-center space-x-4">
@@ -856,6 +857,8 @@ const HeroSection = () => {
 
 const CategoriesSection = () => {
     const navigate = useNavigate();
+    const categoriesRef = useRef(null);
+    const [animateCategories, setAnimateCategories] = useState(false);
     const categories = [
         { icon: Pizza, name: "Pizza", count: "" },
         { icon: Salad, name: "Healthy", count: "" },
@@ -863,52 +866,121 @@ const CategoriesSection = () => {
         { icon: IceCream, name: "Desserts", count: "" },
         { icon: Beef, name: "Meat", count: "" },
         { icon: Utensils, name: "More", count: "" }
-      ];
+    ];
     
-      const handleCategoryClick = () => {
-        const userName = localStorage.getItem('userName');
-        if (!userName) {
-          // Redirect to login if not logged in
-          toast.error('Please login to view restaurants', {
-            position: "top-right",
-            autoClose: 2000
-          });
-          navigate('/login');
-        } else {
-          // Simply navigate to restaurants page
-          navigate('/restaurants');
-          toast.info('Browsing restaurants', {
-            position: "top-right",
-            autoClose: 2000
-          });
+    useEffect(() => {
+      // Create an Intersection Observer to detect when categories enter viewport
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          if (entry.isIntersecting) {
+            // Delay animation slightly for better effect
+            setTimeout(() => {
+              setAnimateCategories(true);
+            }, 200);
+            // Once animation is triggered, disconnect the observer
+            observer.disconnect();
+          }
+        },
+        { threshold: 0.2 } // Trigger when 20% of the section is visible
+      );
+      
+      if (categoriesRef.current) {
+        observer.observe(categoriesRef.current);
+      }
+      
+      return () => {
+        if (observer) {
+          observer.disconnect();
         }
       };
+    }, []);
+    
+    const handleCategoryClick = (categoryName) => {
+      const userName = localStorage.getItem('userName');
+      if (!userName) {
+        // Redirect to login if not logged in
+        toast.error('Please login to view restaurants', {
+          position: "top-right",
+          autoClose: 2000
+        });
+        navigate('/login');
+      } else {
+        // Store the selected cuisine in localStorage to access it on the restaurants page
+        localStorage.setItem('selectedCuisine', categoryName);
+        localStorage.setItem('openFilters', 'true');
+        
+        // Navigate to restaurants page
+        navigate('/restaurants');
+        
+        toast.info(`Browsing ${categoryName} options`, {
+          position: "top-right",
+          autoClose: 2000
+        });
+      }
+    };
 
-      return (
-        <section className="py-20 bg-gray-50">
-          <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold text-center mb-4">Popular Categories</h2>
-            <p className="text-gray-600 text-center mb-12">
-              Explore restaurants by your favorite cuisine type
-            </p>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-              {categories.map((category) => (
+    return (
+      <section className="py-20 bg-gray-50 overflow-hidden" ref={categoriesRef}>
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-4 
+            transition-all duration-700 
+            transform-gpu translate-y-0 opacity-100"
+            style={{ 
+              opacity: animateCategories ? 1 : 0, 
+              transform: animateCategories ? 'translateY(0)' : 'translateY(-20px)'
+            }}
+          >
+            Popular Categories
+          </h2>
+          <p className="text-gray-600 text-center mb-12 transition-all duration-700 delay-100"
+            style={{ 
+              opacity: animateCategories ? 1 : 0, 
+              transform: animateCategories ? 'translateY(0)' : 'translateY(-20px)'
+            }}
+          >
+            Explore restaurants by your favorite cuisine type
+          </p>
+          
+          <div className="relative h-[500px] md:h-[400px] lg:h-[300px]">
+            <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 relative`}>
+              {categories.map((category, index) => (
                 <div
                   key={category.name}
-                  onClick={handleCategoryClick}
-                  className="group relative overflow-hidden rounded-2xl bg-white p-6 text-center shadow-lg transition-transform hover:-translate-y-1 hover:shadow-xl cursor-pointer"
+                  onClick={() => handleCategoryClick(category.name)}
+                  className={`
+                    group relative overflow-hidden rounded-2xl bg-white p-6 text-center shadow-lg cursor-pointer
+                    transition-all ease-out duration-1000
+                    ${animateCategories ? 'opacity-100 translate-y-0 rotate-0 scale-100' : 'opacity-0 translate-y-20 scale-95'}
+                    hover:shadow-xl hover:-translate-y-2 active:translate-y-0 active:shadow-md
+                  `}
+                  style={{ 
+                    transformOrigin: 'center center',
+                    position: animateCategories ? 'relative' : 'absolute',
+                    top: animateCategories ? 'auto' : '50%',
+                    left: animateCategories ? 'auto' : '50%',
+                    transform: animateCategories 
+                      ? `translateY(0) rotate(0) scale(1)` 
+                      : `translate(-50%, -50%) rotate(${index * 5 - 12.5}deg) scale(0.9) translateY(${index * 10}px)`,
+                    zIndex: animateCategories ? 1 : categories.length - index,
+                    transitionDelay: `${index * 100}ms`,
+                    boxShadow: animateCategories ? '' : '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
+                  }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <category.icon className="mx-auto h-12 w-12 text-orange-500 mb-4" />
-                  <h3 className="font-semibold mb-1">{category.name}</h3>
-                  <p className="text-sm text-gray-500">{category.count}</p>
+                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-pink-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="relative z-10 transition-transform duration-500 transform-gpu group-hover:scale-110">
+                    <category.icon className="mx-auto h-12 w-12 text-orange-500 mb-4 transition-all duration-500 transform-gpu group-hover:text-orange-600 group-hover:drop-shadow-md" />
+                    <h3 className="font-semibold mb-1 transition-all duration-500 group-hover:text-orange-600">{category.name}</h3>
+                    <p className="text-sm text-gray-500 transition-all duration-500 group-hover:text-gray-700">{category.count}</p>
+                  </div>
+                  <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 group-active:opacity-0 transition-opacity duration-300" />
                 </div>
               ))}
             </div>
           </div>
-        </section>
-      );
+        </div>
+      </section>
+    );
 };
 
 const FoodGrid = () => {
@@ -1180,6 +1252,29 @@ const RestaurantsPage = () => {
     }
   }, [userName, navigate]);
 
+  // Check for selected cuisine from categories and open filters if needed
+  useEffect(() => {
+    const selectedCuisine = localStorage.getItem('selectedCuisine');
+    const shouldOpenFilters = localStorage.getItem('openFilters') === 'true';
+    
+    if (selectedCuisine) {
+      // Update the filters with the selected cuisine
+      setSelectedFilters(prev => ({
+        ...prev,
+        cuisine: [selectedCuisine]
+      }));
+      
+      // Open the filter panel if requested
+      if (shouldOpenFilters) {
+        setFilterOpen(true);
+      }
+      
+      // Clear the localStorage values after applying
+      localStorage.removeItem('selectedCuisine');
+      localStorage.removeItem('openFilters');
+    }
+  }, []);
+
   // Check if on mobile device
   useEffect(() => {
     const checkIfMobile = () => {
@@ -1202,11 +1297,12 @@ const RestaurantsPage = () => {
   const savedLat = parseFloat(localStorage.getItem('selectedLat')) || 16.4419;
   const savedLng = parseFloat(localStorage.getItem('selectedLng')) || 80.6226;
 
-  // Mock cuisine types
+  // Mock cuisine types - ensure these match with the category names used in CategoriesSection
   const cuisineTypes = [
-    "Indian", "South Indian", "North Indian", "Chinese", "Italian",
-    "Continental", "Fast Food", "Desserts", "Beverages", "Biryani",
-    "Andhra", "Vegetarian", "Pizza", "Burgers"
+    "Pizza", "Healthy", "Breakfast", "Desserts", "Meat", "Indian", 
+    "South Indian", "North Indian", "Chinese", "Italian",
+    "Continental", "Fast Food", "Beverages", "Biryani",
+    "Andhra", "Vegetarian", "Burgers"
   ];
 
   // Mock price ranges
@@ -1352,321 +1448,307 @@ const RestaurantsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
+    <div className="min-h-screen bg-gray-50 pt-20 pb-12">
       <SiteHeader />
-      
-      {/* Header Section */}
-      <div className="pt-20 bg-gradient-to-r from-orange-500 to-pink-500 text-white">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <button 
-                onClick={() => navigate('/')}
-                className="mr-4 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <h1 className="text-2xl font-bold">Restaurants Near You</h1>
+      <div className="container mx-auto px-4">
+        {/* Address and Search Bar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+          <div className="flex items-center mb-4 md:mb-0">
+            <div className="bg-white p-2 rounded-full shadow-sm mr-3">
+              <MapPin className="text-orange-500 h-5 w-5" />
             </div>
-            
-            <button 
-              onClick={() => navigate('/offers')}
-              className="flex items-center gap-2 bg-white text-orange-600 px-4 py-2 rounded-full shadow-md hover:bg-orange-50 transition-all"
-            >
-              <Tag size={16} />
-              <span className="hidden sm:inline">View Offers</span>
-            </button>
-          </div>
-          
-          <div className="flex items-center text-sm mb-4">
-            <MapPin className="h-4 w-4 mr-1" />
-            <p className="line-clamp-1">{savedAddress}</p>
-          </div>
-          
-          {/* Search and Filter */}
-          <div className="flex items-center gap-2 mb-2">
-            <div className="relative flex-grow">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search restaurants, cuisines..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-full text-gray-800 text-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-400 outline-none"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-            <button 
-              onClick={() => setFilterOpen(!filterOpen)}
-              className={`min-w-[40px] p-2 rounded-full flex items-center justify-center ${filterOpen ? 'bg-white text-orange-500' : 'bg-white/20'}`}
-            >
-              <Filter size={20} />
-              <span className="ml-1 hidden md:inline">Filters</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Filters Panel */}
-      {filterOpen && (
-        <div className="bg-white shadow-md border-b border-gray-200">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold">Filters</h3>
-              <button 
-                onClick={clearFilters}
-                className="text-sm text-orange-500 hover:text-orange-600"
-              >
-                Clear All
-              </button>
-            </div>
-            
-            {/* Sort By */}
-            <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Sort By</h4>
-              <div className="flex flex-wrap gap-2">
-                {sortOptions.map(option => (
-                  <button
-                    key={option.id}
-                    onClick={() => setSelectedFilters({...selectedFilters, sortBy: option.id})}
-                    className={`px-3 py-1 rounded-full text-xs ${
-                      selectedFilters.sortBy === option.id 
-                        ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            {/* Price Range */}
-            <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Price Range</h4>
-              <div className="flex flex-wrap gap-2">
-                {priceRanges.map(range => (
-                  <button
-                    key={range.id}
-                    onClick={() => setSelectedFilters({
-                      ...selectedFilters, 
-                      priceRange: selectedFilters.priceRange === range.id ? null : range.id
-                    })}
-                    className={`px-3 py-1 rounded-full text-xs ${
-                      selectedFilters.priceRange === range.id 
-                        ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {range.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            {/* Rating */}
-            <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Rating</h4>
-              <div className="flex flex-wrap gap-2">
-                {[3, 3.5, 4, 4.5].map(rating => (
-                  <button
-                    key={rating}
-                    onClick={() => setSelectedFilters({
-                      ...selectedFilters, 
-                      rating: selectedFilters.rating === rating ? null : rating
-                    })}
-                    className={`px-3 py-1 rounded-full text-xs ${
-                      selectedFilters.rating === rating 
-                        ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {rating}+ <Star className="inline h-3 w-3 fill-current" />
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            {/* Cuisine Types - Limited display for mobile */}
             <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Cuisine</h4>
-              <div className="flex flex-wrap gap-2">
-                {cuisineTypes.slice(0, showAllCuisines ? cuisineTypes.length : 8).map(cuisine => (
-                  <button
-                    key={cuisine}
-                    onClick={() => {
-                      const newCuisines = selectedFilters.cuisine.includes(cuisine)
-                        ? selectedFilters.cuisine.filter(c => c !== cuisine)
-                        : [...selectedFilters.cuisine, cuisine];
-                      setSelectedFilters({...selectedFilters, cuisine: newCuisines});
-                    }}
-                    className={`px-3 py-1 rounded-full text-xs ${
-                      selectedFilters.cuisine.includes(cuisine) 
-                        ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {cuisine}
-                  </button>
-                ))}
-                {isMobile && !showAllCuisines && cuisineTypes.length > 8 && (
-                  <button
-                    onClick={() => setShowAllCuisines(true)}
-                    className="px-3 py-1 rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  >
-                    + More
-                  </button>
-                )}
-              </div>
+              <div className="text-sm text-gray-500">Delivery to</div>
+              <div className="font-medium">{savedAddress}</div>
             </div>
           </div>
+          
+          <div className="relative flex-1 md:max-w-md">
+            <input
+              type="text"
+              placeholder="Search for restaurants, cuisines..."
+              className="w-full py-2 pl-10 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+          </div>
+          
+          {/* Filter button (mobile only) */}
+          <button
+            className="md:hidden flex items-center justify-center bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-700 mt-4"
+            onClick={() => setFilterOpen(!filterOpen)}
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filter
+          </button>
         </div>
-      )}
-      
-      {/* Restaurant Listing */}
-      <div className="container mx-auto px-4 py-6">
-        {loading ? (
-          <div className="flex flex-col items-center py-12">
-            <div className="w-16 h-16 border-4 border-gray-200 border-t-orange-500 rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-600">Finding restaurants near you...</p>
-          </div>
-        ) : filteredRestaurants.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-              <Utensils className="h-10 w-10 text-gray-400" />
-            </div>
-            <h3 className="text-xl font-medium mb-2">No restaurants found</h3>
-            <p className="text-gray-500 mb-4">Try adjusting your filters or search query</p>
-            <button 
-              onClick={clearFilters}
-              className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg hover:bg-orange-200"
-            >
-              Clear All Filters
-            </button>
-          </div>
-        ) : (
-          <div>
-            {/* Results summary */}
-            <div className="mb-4 text-sm text-gray-500">
-              Found {filteredRestaurants.length} restaurants
-              {selectedFilters.cuisine.length > 0 && (
-                <span> • {selectedFilters.cuisine.join(', ')}</span>
-              )}
-              {selectedFilters.priceRange && (
-                <span> • {priceRanges.find(p => p.id === selectedFilters.priceRange)?.label}</span>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4">
-              {filteredRestaurants.map((restaurant) => (
-                <div 
-                  key={restaurant.id} 
-                  className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow active:bg-gray-50"
+        
+        {/* Filter section for mobile */}
+        {filterOpen && (
+          <div className="bg-white shadow-md border-b border-gray-200">
+            <div className="container mx-auto px-4 py-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-semibold">Filters</h3>
+                <button 
+                  onClick={clearFilters}
+                  className="text-sm text-orange-500 hover:text-orange-600"
                 >
-                  <div className="flex flex-col md:flex-row">
-                    {/* Restaurant Image */}
-                    <div className="relative md:w-1/3 h-48 md:h-auto overflow-hidden">
-                      <div className="w-full h-full" style={{ aspectRatio: "4/3" }}>
-                        <img 
-                          src={restaurant.image} 
-                          alt={restaurant.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <button className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full hover:bg-white transition-colors">
-                        <Heart className="h-5 w-5 text-gray-500 hover:text-pink-500" />
-                      </button>
-                    </div>
-                    
-                    {/* Restaurant Details */}
-                    <div className="p-4 md:p-5 flex-grow">
-                      <div className="flex justify-between items-start flex-wrap gap-2">
-                        <div>
-                          <h3 className="text-lg font-bold mb-1">{restaurant.name}</h3>
-                          <div className="flex items-center mb-1 text-sm text-gray-500">
-                            <div className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs font-medium mr-2">
-                              {restaurant.rating} <Star className="inline h-3 w-3 fill-current" />
-                            </div>
-                            <span>{restaurant.reviewCount} reviews</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm">
-                            <span className="font-medium text-gray-900">₹{restaurant.priceForTwo}</span> <span className="text-gray-500">for two</span>
-                            <span className="text-gray-500 mx-1">•</span> <span className="text-gray-500">avg ₹{Math.round(restaurant.priceForTwo / 2)}/person</span>
-                          </div>
-                          <div className="flex items-center justify-end text-sm text-gray-500 mt-1">
-                            <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
-                            <span>{restaurant.distance} km</span>
-                          </div>
-                          <div className="flex items-center justify-end text-sm text-gray-500 mt-1">
-                            <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
-                            <span>{restaurant.timeEstimate} min</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center text-sm text-gray-500 mb-3 mt-2">
-                        <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
-                        <span className="line-clamp-1">{restaurant.address}</span>
-                      </div>
-                      
-                      {/* Badges */}
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {restaurant.veg && (
-                          <span className="bg-green-50 text-green-700 px-2 py-0.5 text-xs rounded-full border border-green-100">
-                            Pure Veg
-                          </span>
-                        )}
-                        {restaurant.openNow && (
-                          <span className="bg-blue-50 text-blue-700 px-2 py-0.5 text-xs rounded-full border border-blue-100">
-                            Open Now
-                          </span>
-                        )}
-                        {restaurant.offers && restaurant.offers.length > 0 && (
-                          <span className="bg-orange-50 text-orange-700 px-2 py-0.5 text-xs rounded-full border border-orange-100">
-                            {restaurant.offers[0]}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Action Buttons with active states for touch */}
-                      <div className="flex flex-wrap justify-between items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                        <div className="flex gap-3">
-                          <a href={`tel:+919876543210`} className="text-gray-600 flex items-center text-sm hover:text-orange-500 active:scale-95 transition-transform">
-                            <Phone className="h-4 w-4 mr-1" />
-                            <span className="hidden sm:inline">Call</span>
-                          </a>
-                          <Link 
-                            to={`/restaurants/${restaurant.id}`} 
-                            className="text-gray-600 flex items-center text-sm hover:text-orange-500 active:scale-95 transition-transform"
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            <span className="hidden sm:inline">Menu</span>
-                          </Link>
-                        </div>
-                        <Link 
-                          to={`/restaurants/${restaurant.id}`} 
-                          className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-4 py-1.5 rounded-full text-sm active:scale-95 transition-transform"
-                        >
-                          Order Now
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
+                  Clear All
+                </button>
+              </div>
+              
+              {/* Sort By */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-500 mb-2">Sort By</h4>
+                <div className="flex flex-wrap gap-2">
+                  {sortOptions.map(option => (
+                    <button
+                      key={option.id}
+                      onClick={() => setSelectedFilters({...selectedFilters, sortBy: option.id})}
+                      className={`px-3 py-1 rounded-full text-xs ${
+                        selectedFilters.sortBy === option.id 
+                          ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
-              ))}
+              </div>
+              
+              {/* Price Range */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-500 mb-2">Price Range</h4>
+                <div className="flex flex-wrap gap-2">
+                  {priceRanges.map(range => (
+                    <button
+                      key={range.id}
+                      onClick={() => setSelectedFilters({
+                        ...selectedFilters, 
+                        priceRange: selectedFilters.priceRange === range.id ? null : range.id
+                      })}
+                      className={`px-3 py-1 rounded-full text-xs ${
+                        selectedFilters.priceRange === range.id 
+                          ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {range.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Rating */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-500 mb-2">Rating</h4>
+                <div className="flex flex-wrap gap-2">
+                  {[3, 3.5, 4, 4.5].map(rating => (
+                    <button
+                      key={rating}
+                      onClick={() => setSelectedFilters({
+                        ...selectedFilters, 
+                        rating: selectedFilters.rating === rating ? null : rating
+                      })}
+                      className={`px-3 py-1 rounded-full text-xs ${
+                        selectedFilters.rating === rating 
+                          ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {rating}+ <Star className="inline h-3 w-3 fill-current" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Cuisine Types - Limited display for mobile */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-500 mb-2">Cuisine</h4>
+                <div className="flex flex-wrap gap-2">
+                  {cuisineTypes.slice(0, showAllCuisines ? cuisineTypes.length : 8).map(cuisine => (
+                    <button
+                      key={cuisine}
+                      onClick={() => {
+                        const newCuisines = selectedFilters.cuisine.includes(cuisine)
+                          ? selectedFilters.cuisine.filter(c => c !== cuisine)
+                          : [...selectedFilters.cuisine, cuisine];
+                        setSelectedFilters({...selectedFilters, cuisine: newCuisines});
+                      }}
+                      className={`px-3 py-1 rounded-full text-xs ${
+                        selectedFilters.cuisine.includes(cuisine) 
+                          ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {cuisine}
+                    </button>
+                  ))}
+                  {isMobile && !showAllCuisines && cuisineTypes.length > 8 && (
+                    <button
+                      onClick={() => setShowAllCuisines(true)}
+                      className="px-3 py-1 rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    >
+                      + More
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
+        
+        {/* Main content with sidebar filter (desktop) and restaurant listings */}
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Sidebar Filters - Desktop */}
+          <div className="hidden md:block w-64 shrink-0">
+            {/* ... existing sidebar filters ... */}
+          </div>
+          
+          {/* Restaurant Listings */}
+          <div className="flex-1">
+            {loading ? (
+              <div className="flex flex-col items-center py-12">
+                <div className="w-16 h-16 border-4 border-gray-200 border-t-orange-500 rounded-full animate-spin mb-4"></div>
+                <p className="text-gray-600">Finding restaurants near you...</p>
+              </div>
+            ) : filteredRestaurants.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                  <Utensils className="h-10 w-10 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">No restaurants found</h3>
+                <p className="text-gray-500 mb-4">Try adjusting your filters or search query</p>
+                <button 
+                  onClick={clearFilters}
+                  className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg hover:bg-orange-200"
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            ) : (
+              <div>
+                {/* Results summary */}
+                <div className="mb-4 text-sm text-gray-500">
+                  Found {filteredRestaurants.length} restaurants
+                  {selectedFilters.cuisine.length > 0 && (
+                    <span> • {selectedFilters.cuisine.join(', ')}</span>
+                  )}
+                  {selectedFilters.priceRange && (
+                    <span> • {priceRanges.find(p => p.id === selectedFilters.priceRange)?.label}</span>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredRestaurants.map((restaurant) => (
+                    <div 
+                      key={restaurant.id} 
+                      className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow active:bg-gray-50"
+                    >
+                      <div className="flex flex-col md:flex-row">
+                        {/* Restaurant Image */}
+                        <div className="relative md:w-1/3 h-48 md:h-auto overflow-hidden">
+                          <div className="w-full h-full" style={{ aspectRatio: "4/3" }}>
+                            <img 
+                              src={restaurant.image} 
+                              alt={restaurant.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <button className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full hover:bg-white transition-colors">
+                            <Heart className="h-5 w-5 text-gray-500 hover:text-pink-500" />
+                          </button>
+                        </div>
+                        
+                        {/* Restaurant Details */}
+                        <div className="p-4 md:p-5 flex-grow">
+                          <div className="flex justify-between items-start flex-wrap gap-2">
+                            <div>
+                              <h3 className="font-semibold text-lg mb-1">{restaurant.name}</h3>
+                              <div className="flex items-center mb-1 text-sm text-gray-500">
+                                <div className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs font-medium mr-2">
+                                  {restaurant.rating} <Star className="inline h-3 w-3 fill-current" />
+                                </div>
+                                <span>{restaurant.reviewCount} reviews</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm">
+                                <span className="font-medium text-gray-900">₹{restaurant.priceForTwo}</span> <span className="text-gray-500">for two</span>
+                                <span className="text-gray-500 mx-1">•</span> <span className="text-gray-500">avg ₹{Math.round(restaurant.priceForTwo / 2)}/person</span>
+                              </div>
+                              <div className="flex items-center justify-end text-sm text-gray-500 mt-1">
+                                <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
+                                <span>{restaurant.distance} km</span>
+                              </div>
+                              <div className="flex items-center justify-end text-sm text-gray-500 mt-1">
+                                <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                                <span>{restaurant.timeEstimate} min</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center text-sm text-gray-500 mb-3 mt-2">
+                            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                            <span className="line-clamp-1">{restaurant.address}</span>
+                          </div>
+                          
+                          {/* Badges */}
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {restaurant.veg && (
+                              <span className="bg-green-50 text-green-700 px-2 py-0.5 text-xs rounded-full border border-green-100">
+                                Pure Veg
+                              </span>
+                            )}
+                            {restaurant.openNow && (
+                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 text-xs rounded-full border border-blue-100">
+                                Open Now
+                              </span>
+                            )}
+                            {restaurant.offers && restaurant.offers.length > 0 && (
+                              <span className="bg-orange-50 text-orange-700 px-2 py-0.5 text-xs rounded-full border border-orange-100">
+                                {restaurant.offers[0]}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Action Buttons with active states for touch */}
+                          <div className="flex flex-wrap justify-between items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                            <div className="flex gap-3">
+                              <a href={`tel:+919876543210`} className="text-gray-600 flex items-center text-sm hover:text-orange-500 active:scale-95 transition-transform">
+                                <Phone className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">Call</span>
+                              </a>
+                              <Link 
+                                to={`/restaurants/${restaurant.id}`} 
+                                className="text-gray-600 flex items-center text-sm hover:text-orange-500 active:scale-95 transition-transform"
+                              >
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">Menu</span>
+                              </Link>
+                            </div>
+                            <Link 
+                              to={`/restaurants/${restaurant.id}`} 
+                              className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-4 py-1.5 rounded-full text-sm active:scale-95 transition-transform"
+                            >
+                              Order Now
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+      
+      {/* Add the ChatbotPopup component */}
+      <ChatbotPopup restaurants={restaurants} />
     </div>
   );
 };
